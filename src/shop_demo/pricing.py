@@ -11,5 +11,5 @@ def total_with_tax(unit_price: Decimal, quantity: int, tax_rate_percent: Decimal
         raise ValueError("tax_rate_percent must not be negative")
 
     subtotal = unit_price * quantity
-    total = subtotal * (Decimal("1") + tax_rate_percent)
+    total = subtotal * (Decimal("1") + tax_rate_percent / Decimal("100"))
     return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
