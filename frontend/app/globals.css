@@ -75,6 +75,37 @@ a {
   text-decoration: none;
 }
 
+/* 滚动条：细条 + 半透明灰，悬浮加深；深色侧栏使用浅色半透明版本 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c2ccd4 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c7d0d8;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8b4bd;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 h1 {
   font-size: 26px;
   font-weight: 700;
@@ -132,7 +163,22 @@ pre {
   gap: 26px;
   position: sticky;
   top: 0;
+  /* 深色底上使用浅色半透明滚动条，避免默认灰白条突兀 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
   height: 100vh;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.42);
+  background-clip: content-box;
 }
 
 .brand {
