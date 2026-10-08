@@ -50,7 +50,7 @@ jobs:
             --image "frontend=$IMAGE-frontend:$REVISION" \
             --image "sandbox=$IMAGE-sandbox:$REVISION" \
             --image "trainer=$IMAGE-trainer:$REVISION"
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile
@@ -58,7 +58,7 @@ jobs:
           tags: ${{ steps.image.outputs.name }}-api:${{ github.sha }}
           provenance: true
           sbom: true
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: frontend/Dockerfile
@@ -67,7 +67,7 @@ jobs:
           tags: ${{ steps.image.outputs.name }}-frontend:${{ github.sha }}
           provenance: true
           sbom: true
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile.sandbox
@@ -75,7 +75,7 @@ jobs:
           tags: ${{ steps.image.outputs.name }}-sandbox:${{ github.sha }}
           provenance: true
           sbom: true
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile.trainer
