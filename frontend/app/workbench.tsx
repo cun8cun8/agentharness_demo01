@@ -3747,6 +3747,13 @@ export default function Workbench({ section }: { section: string }) {
                                 if (runId) {
                                   inspectedDeepLink.current = runId;
                                   setDeepLinkedRunId(runId);
+                                  const url = new URL(window.location.href);
+                                  url.searchParams.set("run", runId);
+                                  window.history.replaceState(
+                                    null,
+                                    "",
+                                    `${url.pathname}${url.search}${url.hash}`,
+                                  );
                                 }
                                 void inspect(entry);
                               }}
