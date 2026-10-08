@@ -1666,6 +1666,8 @@ export default function Workbench({ section }: { section: string }) {
   const [runSort, setRunSort] = useState(() => browserQueryValue("sort") || "completed_desc");
   const [auditAction, setAuditAction] = useState(() => browserQueryValue("action"));
   const [auditResourceType, setAuditResourceType] = useState(() => browserQueryValue("resource"));
+  const [auditActorId, setAuditActorId] = useState(() => browserQueryValue("actor"));
+  const [auditResourceId, setAuditResourceId] = useState(() => browserQueryValue("resource_id"));
   const [auditDecision, setAuditDecision] = useState(() => browserQueryValue("decision"));
   const [deepLinkedRunId, setDeepLinkedRunId] = useState(() => browserQueryValue("run"));
   const [deepLinkedJobId, setDeepLinkedJobId] = useState(() => browserQueryValue("job"));
@@ -1733,7 +1735,7 @@ export default function Workbench({ section }: { section: string }) {
         ? `&query=${encodeURIComponent(deferredQuery)}&status=${encodeURIComponent(status)}`
         : "";
       const auditFilters = section === "audit"
-        ? `&query=${encodeURIComponent(deferredQuery)}${auditAction ? `&action=${encodeURIComponent(auditAction)}` : ""}${auditResourceType ? `&resource_type=${encodeURIComponent(auditResourceType)}` : ""}${auditDecision ? `&decision=${encodeURIComponent(auditDecision)}` : ""}`
+        ? `&query=${encodeURIComponent(deferredQuery)}${auditActorId ? `&actor_id=${encodeURIComponent(auditActorId)}` : ""}${auditAction ? `&action=${encodeURIComponent(auditAction)}` : ""}${auditResourceType ? `&resource_type=${encodeURIComponent(auditResourceType)}` : ""}${auditResourceId ? `&resource_id=${encodeURIComponent(auditResourceId)}` : ""}${auditDecision ? `&decision=${encodeURIComponent(auditDecision)}` : ""}`
         : "";
       const explicitFromTime = dateTimeQueryValue(runFromTime);
       const explicitToTime = dateTimeQueryValue(runToTime);
@@ -1771,7 +1773,7 @@ export default function Workbench({ section }: { section: string }) {
       if (loadAbort.current === abortController) loadAbort.current = null;
       if (sequence === loadSequence.current) setBusy(false);
     }
-  }, [section, offset, datasetView, activeWorkspaceId, deferredQuery, status, auditAction, auditResourceType, auditDecision, runProjectFilter, runBranchFilter, runModelFilter, runStrategyFilter, runRange, runFromTime, runToTime, runSort]);
+  }, [section, offset, datasetView, activeWorkspaceId, deferredQuery, status, auditActorId, auditAction, auditResourceType, auditResourceId, auditDecision, runProjectFilter, runBranchFilter, runModelFilter, runStrategyFilter, runRange, runFromTime, runToTime, runSort]);
   const openLogin = useCallback(() => redirectToLogin(), []);
   useEffect(() => {
     const clear = () => {
@@ -1867,8 +1869,10 @@ export default function Workbench({ section }: { section: string }) {
       runFromTime,
       runToTime,
       runSort,
+      auditActorId,
       auditAction,
       auditResourceType,
+      auditResourceId,
       auditDecision,
     ].join("|");
     if (loadedRequestKey.current === requestKey) return;
@@ -1893,8 +1897,10 @@ export default function Workbench({ section }: { section: string }) {
     runFromTime,
     runToTime,
     runSort,
+    auditActorId,
     auditAction,
     auditResourceType,
+    auditResourceId,
     auditDecision,
   ]);
   useEffect(() => {
@@ -2063,11 +2069,13 @@ export default function Workbench({ section }: { section: string }) {
     if (section !== "audit" || typeof window === "undefined") return;
     const url = new URL(window.location.href);
     setSearchParameter(url.searchParams, "query", query);
+    setSearchParameter(url.searchParams, "actor", auditActorId);
     setSearchParameter(url.searchParams, "action", auditAction);
     setSearchParameter(url.searchParams, "resource", auditResourceType);
+    setSearchParameter(url.searchParams, "resource_id", auditResourceId);
     setSearchParameter(url.searchParams, "decision", auditDecision);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [section, query, auditAction, auditResourceType, auditDecision]);
+  }, [section, query, auditActorId, auditAction, auditResourceType, auditResourceId, auditDecision]);
   useEffect(() => {
     if (section !== "runs" || typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -2932,8 +2940,10 @@ export default function Workbench({ section }: { section: string }) {
   const auditExportParams = new URLSearchParams();
   if (activeWorkspaceId) auditExportParams.set("workspace_id", activeWorkspaceId);
   if (deferredQuery) auditExportParams.set("query", deferredQuery);
+  if (auditActorId) auditExportParams.set("actor_id", auditActorId);
   if (auditAction) auditExportParams.set("action", auditAction);
   if (auditResourceType) auditExportParams.set("resource_type", auditResourceType);
+  if (auditResourceId) auditExportParams.set("resource_id", auditResourceId);
   if (auditDecision) auditExportParams.set("decision", auditDecision);
   const auditExportHref = `/api/v1/audit-logs/export.csv?${auditExportParams.toString()}`;
   useEffect(() => {
@@ -3249,6 +3259,18 @@ export default function Workbench({ section }: { section: string }) {
                 {section === "audit" && (
                   <>
                     <label className="status-filter">
+                      <span>操作者</span>
+                      <input
+                        aria-label="操作者筛选"
+                        placeholder="用户 ID 或系统标识"
+                        value={auditActorId}
+                        onChange={(event) => {
+                          setAuditActorId(event.target.value);
+                          setOffset(0);
+                        }}
+                      />
+                    </label>
+                    <label className="status-filter">
                       <span>操作</span>
                       <input
                         aria-label="操作筛选"
@@ -3256,6 +3278,18 @@ export default function Workbench({ section }: { section: string }) {
                         value={auditAction}
                         onChange={(event) => {
                           setAuditAction(event.target.value);
+                          setOffset(0);
+                        }}
+                      />
+                    </label>
+                    <label className="status-filter">
+                      <span>资源 ID</span>
+                      <input
+                        aria-label="资源 ID 筛选"
+                        placeholder="任务、运行或仓库 ID"
+                        value={auditResourceId}
+                        onChange={(event) => {
+                          setAuditResourceId(event.target.value);
                           setOffset(0);
                         }}
                       />
@@ -3290,14 +3324,16 @@ export default function Workbench({ section }: { section: string }) {
                     </label>
                   </>
                 )}
-                {(query || status || auditAction || auditResourceType || auditDecision) && (
+                {(query || status || auditActorId || auditAction || auditResourceType || auditResourceId || auditDecision) && (
                   <button
                     className="filter-reset"
                     onClick={() => {
                       setQuery("");
                       setStatus("");
+                      setAuditActorId("");
                       setAuditAction("");
                       setAuditResourceType("");
+                      setAuditResourceId("");
                       setAuditDecision("");
                       setOffset(0);
                     }}

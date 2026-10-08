@@ -61,3 +61,21 @@ def test_audit_log_export_preserves_current_filters() -> None:
     assert response.headers["content-type"].startswith("text/csv")
     assert "researchforge-audit-logs.csv" in response.headers["content-disposition"]
     assert marker in response.content.decode("utf-8-sig")
+
+
+def test_audit_log_export_redacts_sensitive_detail_keys() -> None:
+    marker = f"audit-secret-{uuid4().hex}"
+    store.add_audit_log(
+        action="audit.sensitive",
+        resource_type="secret_resource",
+        resource_id=marker,
+        detail_json={"token": "do-not-export", "nested": {"api_key": "also-private"}},
+    )
+
+    response = client.get("/api/v1/audit-logs/export.csv", params={"resource_id": marker})
+
+    body = response.content.decode("utf-8-sig")
+    assert response.status_code == 200
+    assert "<redacted>" in body
+    assert "do-not-export" not in body
+    assert "also-private" not in body

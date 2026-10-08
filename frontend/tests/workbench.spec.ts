@@ -29,6 +29,8 @@ test("Chinese workbench navigation, task creation, and layouts", async ({ page }
   await expect(page.getByRole("heading", { name: "操作审计", exact: true })).toBeVisible();
   await expect(page.getByLabel("操作筛选", { exact: true })).toBeVisible();
   await expect(page.getByLabel("资源类型筛选", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("操作者筛选", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("资源 ID 筛选", { exact: true })).toBeVisible();
   await expect(page.getByLabel("决策筛选", { exact: true })).toBeVisible();
   await page.getByLabel("操作筛选", { exact: true }).fill("task.create");
   await expect(page).toHaveURL(/action=task.create/);

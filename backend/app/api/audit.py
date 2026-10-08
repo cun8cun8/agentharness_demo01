@@ -10,6 +10,30 @@ from app.infra.store import store
 
 router = APIRouter(tags=["audit"])
 
+_SENSITIVE_DETAIL_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "credential",
+    "password",
+    "private_key",
+    "secret",
+    "token",
+}
+
+
+def _redact_export_detail(value: object, key: str = "") -> object:
+    normalized = key.casefold().replace("-", "_")
+    if normalized in _SENSITIVE_DETAIL_KEYS or any(
+        marker in normalized for marker in ("_token", "_secret", "_password", "_credential", "_api_key")
+    ):
+        return "<redacted>"
+    if isinstance(value, dict):
+        return {str(child_key): _redact_export_detail(child_value, str(child_key)) for child_key, child_value in value.items()}
+    if isinstance(value, list):
+        return [_redact_export_detail(item) for item in value]
+    return value
+
 
 def _filtered_audit_logs(
     request: Request,
@@ -86,7 +110,12 @@ async def export_audit_logs(
                 row.resource_id,
                 row.decision,
                 row.created_at.isoformat(),
-                json.dumps(row.detail_json, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+                json.dumps(
+                    _redact_export_detail(row.detail_json),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
             ]
         )
     return Response(
