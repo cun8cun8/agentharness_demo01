@@ -3742,7 +3742,14 @@ export default function Workbench({ section }: { section: string }) {
                               row={row}
                               selected={selected?.id === row.id}
                               busy={busy}
-                              onInspect={(entry) => void inspect(entry)}
+                              onInspect={(entry) => {
+                                const runId = value(entry, "id");
+                                if (runId) {
+                                  inspectedDeepLink.current = runId;
+                                  setDeepLinkedRunId(runId);
+                                }
+                                void inspect(entry);
+                              }}
                               onShare={(entry) => {
                                 const runId = value(entry, "id");
                                 if (!runId) return;
@@ -6324,4 +6331,3 @@ function CanaryPanel({
     </section>
   );
 }
-
