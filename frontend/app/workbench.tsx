@@ -2929,6 +2929,13 @@ export default function Workbench({ section }: { section: string }) {
   if (runToQuery) runExportParams.set("to_time", runToQuery);
   runExportParams.set("sort", runSort);
   const runExportHref = `/api/v1/run-records/export.csv?${runExportParams.toString()}`;
+  const auditExportParams = new URLSearchParams();
+  if (activeWorkspaceId) auditExportParams.set("workspace_id", activeWorkspaceId);
+  if (deferredQuery) auditExportParams.set("query", deferredQuery);
+  if (auditAction) auditExportParams.set("action", auditAction);
+  if (auditResourceType) auditExportParams.set("resource_type", auditResourceType);
+  if (auditDecision) auditExportParams.set("decision", auditDecision);
+  const auditExportHref = `/api/v1/audit-logs/export.csv?${auditExportParams.toString()}`;
   useEffect(() => {
     document.title = title
       ? `${title} · ResearchForge`
@@ -3164,6 +3171,11 @@ export default function Workbench({ section }: { section: string }) {
                     </a>
                   </div>
                 </>
+              )}
+              {section === "audit" && (
+                <div className="secondary-actions">
+                  <a href={auditExportHref}>导出审计日志</a>
+                </div>
               )}
               <div className="filters">
                 <label className="search-field">

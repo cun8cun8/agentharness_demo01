@@ -32,6 +32,7 @@ test("Chinese workbench navigation, task creation, and layouts", async ({ page }
   await expect(page.getByLabel("决策筛选", { exact: true })).toBeVisible();
   await page.getByLabel("操作筛选", { exact: true }).fill("task.create");
   await expect(page).toHaveURL(/action=task.create/);
+  await expect(page.getByRole("link", { name: "导出审计日志", exact: true })).toHaveAttribute("href", /action=task.create/);
   await page.screenshot({ path: `test-results/${testInfo.project.name}-system.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);

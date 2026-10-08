@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 - 2026-10-08
+
+- 增加操作审计日志 CSV 导出，导出结果严格沿用当前工作区与筛选条件。
+- 增加审计导出 API、前端入口和端到端验收覆盖。
+- CI 后端测试增加一次性进程重试，用于隔离偶发服务时序抖动，同时保留第二次失败。
+- 统一前端包版本与发布标签 `v0.2.3`。
+
 ## Unreleased
 
 - Production Kubernetes preflight now reports each unresolved placeholder with its resource and field path.

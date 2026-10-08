@@ -39,3 +39,25 @@ def test_audit_log_search_is_case_insensitive() -> None:
 
     assert response.status_code == 200
     assert any(item["resource_id"] == marker for item in response.json()["items"])
+
+
+def test_audit_log_export_preserves_current_filters() -> None:
+    marker = f"audit-export-{uuid4().hex}"
+    store.add_audit_log(
+        action="audit.exportable",
+        resource_type="export_resource",
+        resource_id=marker,
+        actor_id="export-operator",
+        decision="allow",
+        detail_json={"marker": marker},
+    )
+
+    response = client.get(
+        "/api/v1/audit-logs/export.csv",
+        params={"action": "audit.exportable", "resource_type": "export_resource"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "researchforge-audit-logs.csv" in response.headers["content-disposition"]
+    assert marker in response.content.decode("utf-8-sig")
