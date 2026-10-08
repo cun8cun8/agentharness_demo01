@@ -1,0 +1,82 @@
+.run-project small {
+  display: inline-flex;
+  max-width: 180px;
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-project {
+  flex-wrap: wrap;
+}
+
+.run-project .run-branch {
+  color: #176397;
+}
+
+.run-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  color: var(--teal);
+  background: #fff;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.run-export:hover {
+  border-color: var(--teal);
+  background: #f1f8f6;
+}
+
+.run-revision {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font: 10px/1.35 Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-delegation {
+  margin: 14px 0 0;
+  padding: 9px 10px;
+  border-left: 3px solid var(--teal);
+  background: #f1f8f6;
+  color: #17675f;
+  font: 11px/1.55 Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.repository-webhook-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.repository-webhook-path code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: #fbfcfc;
+  color: var(--muted);
+  font: 11px/1.4 Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .repository-webhook-path {
+    align-items: flex-start;
+  }
+}

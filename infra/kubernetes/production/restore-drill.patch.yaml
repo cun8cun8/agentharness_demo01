@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: researchforge-restore-drill
+  namespace: researchforge
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: restore-drill
+              image: registry.example.invalid/researchforge/api:REPLACE_WITH_IMMUTABLE_TAG

@@ -1,0 +1,18 @@
+# Linux-only, dedicated trusted host. The Docker socket grants host-level control.
+# This is an opt-in development/deployment adapter, not tenant isolation for the API.
+services:
+  api:
+    environment: &sandbox_environment
+      RESEARCHFORGE_SANDBOX_BACKEND: docker
+      RESEARCHFORGE_SANDBOX_IMAGE: researchforge-sandbox:latest
+      RESEARCHFORGE_SANDBOX_NETWORK_ENABLED: "0"
+      RESEARCHFORGE_SANDBOX_SHARED_WORKSPACE_ROOT: ${RESEARCHFORGE_HOST_WORKSPACE_ROOT:?absolute Linux host workspace directory required}
+      RESEARCHFORGE_AGENT_WORKSPACE_ROOT: ${RESEARCHFORGE_HOST_WORKSPACE_ROOT}/agent
+      RESEARCHFORGE_TRAINING_ROOT: ${RESEARCHFORGE_HOST_WORKSPACE_ROOT}/training
+      RESEARCHFORGE_TRAINING_MODELS: ${RESEARCHFORGE_TRAINING_MODELS:-{}}
+    volumes: &sandbox_volumes
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${RESEARCHFORGE_HOST_WORKSPACE_ROOT}:${RESEARCHFORGE_HOST_WORKSPACE_ROOT}
+  worker:
+    environment: *sandbox_environment
+    volumes: *sandbox_volumes

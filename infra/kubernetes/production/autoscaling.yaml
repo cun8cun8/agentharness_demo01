@@ -1,0 +1,85 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: researchforge-api
+  namespace: researchforge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: researchforge-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: researchforge-api
+  namespace: researchforge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: researchforge-worker
+  namespace: researchforge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-worker
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: researchforge-frontend
+  namespace: researchforge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-frontend
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: researchforge-worker
+  namespace: researchforge
+spec:
+  scaleTargetRef:
+    name: researchforge-worker
+  minReplicaCount: 1
+  maxReplicaCount: 12
+  cooldownPeriod: 300
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: REPLACE_WITH_REDIS_HOST:6379
+        stream: researchforge:jobs:stream
+        consumerGroup: researchforge-workers
+        pendingEntriesCount: "5"
+        enableTLS: "true"
+      authenticationRef:
+        name: researchforge-redis-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: researchforge-redis-auth
+  namespace: researchforge
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: researchforge-secrets
+      key: REDIS_PASSWORD

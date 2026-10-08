@@ -1,0 +1,24 @@
+id: task_009_timezone_formatter
+title: Fix timezone offset formatter
+type: coding_fix
+repo_path: ./repo
+test_command: pytest
+timeout_seconds: 120
+max_steps: 20
+difficulty: level_3
+goal: >
+  Format timezone offsets with the correct sign and zero-padded HH:MM values.
+success_criteria:
+  - all_tests_pass
+  - no_policy_violation
+  - patch_applies_cleanly
+tags:
+  - python
+  - pytest
+  - datetime
+execution_config:
+  task_kind: timezone
+  source_path: src/timezone_formatter.py
+  usage_estimate:
+    step_tokens: 520
+    tool_tokens: 760

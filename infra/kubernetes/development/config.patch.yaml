@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: researchforge-config
+  namespace: researchforge
+data:
+  RESEARCHFORGE_ENV: "development"
+  RESEARCHFORGE_AUTH_MODE: "development"
+  RESEARCHFORGE_ALLOW_MOCK_MODELS: "1"
+  RESEARCHFORGE_CORS_ORIGINS: "http://localhost:3010,http://127.0.0.1:3010"

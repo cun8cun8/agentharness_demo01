@@ -1,0 +1,82 @@
+groups:
+  - name: researchforge
+    rules:
+      - alert: ResearchForgeUnavailable
+        expr: up{job="researchforge-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: ResearchForge API scrape unavailable
+      - alert: ResearchForgeQueueBacklog
+        expr: researchforge_jobs_queued_total > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ResearchForge job queue backlog
+      - alert: ResearchForgeJobFailures
+        expr: delta(researchforge_jobs_failed_total[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: ResearchForge background job failures increased
+      - alert: ResearchForgeModelFallback
+        expr: delta(researchforge_model_fallbacks_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Unexpected model fallback in production
+      - alert: ResearchForgeRetryableJobs
+        expr: researchforge_jobs_retryable_total > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Retryable ResearchForge jobs are accumulating
+          description: Failed or cancelled agent jobs remain eligible for operator retry.
+      - alert: ResearchForgeNotebookExecutionFailures
+        expr: delta(researchforge_notebook_execution_failures_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Research notebook executions are failing
+      - alert: ResearchForgeNoActiveCodingModel
+        expr: researchforge_model_invocations_total == 0 and researchforge_runs_active_total > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: Coding runs exist but no model invocation was recorded
+
+      - alert: ResearchForgeQueueDisconnected
+        expr: researchforge_queue_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: ResearchForge queue connection is unavailable
+      - alert: ResearchForgeDeadLetters
+        expr: researchforge_queue_dead_letters > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: ResearchForge has unhandled dead-letter deliveries
+      - alert: ResearchForgeNoWorker
+        expr: researchforge_queue_active_workers == 0 and researchforge_jobs_queued_total > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Queued jobs have no live Worker heartbeat
+      - alert: ResearchForgeQueueWaitTimeouts
+        expr: delta(researchforge_queue_wait_timeouts[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: ResearchForge jobs exceeded queue waiting limits

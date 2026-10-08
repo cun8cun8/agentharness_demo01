@@ -1,0 +1,24 @@
+id: task_007_inventory_threshold
+title: Fix inventory reorder threshold
+type: coding_fix
+repo_path: ./repo
+test_command: pytest
+timeout_seconds: 120
+max_steps: 20
+difficulty: level_2
+goal: >
+  Fix reorder threshold behavior at exact boundary values without changing tests.
+success_criteria:
+  - all_tests_pass
+  - no_policy_violation
+  - patch_applies_cleanly
+tags:
+  - python
+  - pytest
+  - business_logic
+execution_config:
+  task_kind: inventory
+  source_path: src/inventory.py
+  usage_estimate:
+    step_tokens: 500
+    tool_tokens: 740

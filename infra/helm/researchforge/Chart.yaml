@@ -1,0 +1,10 @@
+apiVersion: v2
+name: researchforge
+description: Production Helm chart for the ResearchForge Agent Harness
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+keywords:
+  - coding-agent
+  - research
+  - agent-harness

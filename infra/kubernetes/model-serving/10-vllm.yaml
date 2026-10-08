@@ -1,0 +1,212 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: researchforge-vllm-config
+  namespace: researchforge-models
+data:
+  MODEL_ID: /models/REPLACE_WITH_MODEL_DIRECTORY
+  MODEL_S3_URI: s3://REPLACE_WITH_ARTIFACT_BUCKET/models/REPLACE_WITH_MODEL_DIRECTORY
+  TENSOR_PARALLEL_SIZE: "1"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: researchforge-model-serving
+  namespace: researchforge-models
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: researchforge-vllm-secrets
+  namespace: researchforge-models
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: researchforge-production-secrets
+  target:
+    name: researchforge-vllm-secrets
+    creationPolicy: Owner
+  data:
+    - secretKey: VLLM_API_KEY
+      remoteRef:
+        key: researchforge/production/model-serving
+        property: VLLM_API_KEY
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: researchforge-model-weights
+  namespace: researchforge-models
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: researchforge-efs-rwx
+  resources:
+    requests:
+      storage: 500Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: researchforge-vllm
+  namespace: researchforge-models
+  labels:
+    app.kubernetes.io/name: researchforge-vllm
+    app.kubernetes.io/part-of: researchforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-vllm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: researchforge-vllm
+        app.kubernetes.io/part-of: researchforge
+    spec:
+      serviceAccountName: researchforge-model-serving
+      automountServiceAccountToken: false
+      nodeSelector:
+        researchforge.io/workload: gpu-training
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-model-weights
+          image: public.ecr.aws/aws-cli/aws-cli:2.17.62
+          imagePullPolicy: IfNotPresent
+          command: [sh, -ec]
+          args:
+            - aws s3 sync "$MODEL_S3_URI" /models --only-show-errors
+          env:
+            - name: MODEL_S3_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: researchforge-vllm-config
+                  key: MODEL_S3_URI
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: model-weights
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:REPLACE_WITH_IMMUTABLE_TAG
+          imagePullPolicy: Always
+          command: [python3, -m, vllm.entrypoints.openai.api_server]
+          args:
+            - --model
+            - $(MODEL_ID)
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --tensor-parallel-size
+            - $(TENSOR_PARALLEL_SIZE)
+            - --api-key
+            - $(VLLM_API_KEY)
+          env:
+            - name: MODEL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: researchforge-vllm-config
+                  key: MODEL_ID
+            - name: TENSOR_PARALLEL_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: researchforge-vllm-config
+                  key: TENSOR_PARALLEL_SIZE
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-vllm-secrets
+                  key: VLLM_API_KEY
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            tcpSocket: { port: http }
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: "4"
+              memory: 24Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 48Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: model-weights
+              mountPath: /models
+              readOnly: true
+            - name: home
+              mountPath: /home/vllm
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: model-weights
+          persistentVolumeClaim:
+            claimName: researchforge-model-weights
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: researchforge-vllm
+  namespace: researchforge-models
+spec:
+  selector:
+    app.kubernetes.io/name: researchforge-vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: researchforge-vllm
+  namespace: researchforge-models
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-vllm
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: researchforge
+      ports:
+        - protocol: TCP
+          port: 8000

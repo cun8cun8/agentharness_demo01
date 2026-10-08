@@ -1,0 +1,61 @@
+# Apply in the secondary region. The primary backup bucket must replicate WAL
+# and base backups to the bucket referenced below before this Cluster is used.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: researchforge-db-dr
+  namespace: researchforge
+  labels:
+    app.kubernetes.io/name: researchforge-db-dr
+    app.kubernetes.io/part-of: researchforge
+spec:
+  instances: 3
+  storage:
+    size: 100Gi
+  bootstrap:
+    recovery:
+      source: researchforge-primary
+  replica:
+    enabled: true
+    source: researchforge-primary
+  externalClusters:
+    - name: researchforge-primary
+      barmanObjectStore:
+        destinationPath: s3://REPLACE_WITH_CROSS_REGION_BACKUP_BUCKET/researchforge
+        s3Credentials:
+          accessKeyId:
+            name: researchforge-dr-backup-s3
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: researchforge-dr-backup-s3
+            key: SECRET_ACCESS_KEY
+        wal:
+          compression: gzip
+          encryption: AES256
+        data:
+          compression: gzip
+          encryption: AES256
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: researchforge-dr-backup-s3
+  namespace: researchforge
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: researchforge-production-secrets
+  target:
+    name: researchforge-dr-backup-s3
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        key: researchforge/production/dr-postgres-backup
+        property: access_key_id
+    - secretKey: SECRET_ACCESS_KEY
+      remoteRef:
+        key: researchforge/production/dr-postgres-backup
+        property: secret_access_key

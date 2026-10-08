@@ -1,0 +1,12 @@
+**/.venv*
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+**/.next
+**/.data
+**/test-results
+.run
+**/*.log
+.env
+.env.*
+!.env.example

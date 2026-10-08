@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim nodejs npm git && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir 'pytest>=8,<9' 'nbclient>=0.10,<1' 'nbformat>=5.10,<6' 'ipykernel>=6.29,<8' 'PyMuPDF>=1.26,<2'
+ENV IPYTHONDIR=/tmp/ipython JUPYTER_RUNTIME_DIR=/tmp/jupyter
+WORKDIR /workspace

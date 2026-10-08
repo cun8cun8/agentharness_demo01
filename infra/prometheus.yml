@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: researchforge-backend
+    metrics_path: /api/v1/telemetry/metrics
+    static_configs:
+      - targets:
+          - api:8001

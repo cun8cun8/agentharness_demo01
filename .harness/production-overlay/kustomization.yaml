@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Harness resolves the pipeline expressions before rendering this overlay.
+# Keep this overlay separate so local production preflight remains strict and
+# continues to reject unresolved deployment placeholders.
+resources:
+  - ../../infra/kubernetes/production
+
+images:
+  - name: researchforge-api
+    newName: <+pipeline.variables.IMAGE_REGISTRY>/api
+    newTag: <+pipeline.variables.IMAGE_TAG>
+  - name: researchforge-frontend
+    newName: <+pipeline.variables.IMAGE_REGISTRY>/frontend
+    newTag: <+pipeline.variables.IMAGE_TAG>
+  - name: researchforge-sandbox
+    newName: <+pipeline.variables.IMAGE_REGISTRY>/sandbox
+    newTag: <+pipeline.variables.IMAGE_TAG>
+  - name: researchforge-trainer
+    newName: <+pipeline.variables.IMAGE_REGISTRY>/trainer
+    newTag: <+pipeline.variables.IMAGE_TAG>
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: researchforge-config
+    patch: |-
+      - op: replace
+        path: /data/RESEARCHFORGE_SANDBOX_IMAGE
+        value: <+pipeline.variables.IMAGE_REGISTRY>/sandbox:<+pipeline.variables.IMAGE_TAG>
+      - op: replace
+        path: /data/RESEARCHFORGE_TRAINING_IMAGE
+        value: <+pipeline.variables.IMAGE_REGISTRY>/trainer:<+pipeline.variables.IMAGE_TAG>

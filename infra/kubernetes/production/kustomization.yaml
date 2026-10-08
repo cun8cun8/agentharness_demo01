@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - external-secrets.yaml
+  - autoscaling.yaml
+  - postgres-backup.yaml
+  - restore-drill.yaml
+  - efs-storageclass.yaml
+patches:
+  - path: namespace.patch.yaml
+  - path: config.patch.yaml
+  - path: api-runtime.patch.yaml
+  - path: worker-runtime.patch.yaml
+  - path: frontend-runtime.patch.yaml
+  - path: storage.patch.yaml
+  - path: workspace-storage.patch.yaml
+  - path: ingress.patch.yaml
+  - path: restore-drill.patch.yaml
+images:
+  - name: researchforge-api
+    newName: registry.example.invalid/researchforge/api
+    newTag: REPLACE_WITH_IMMUTABLE_TAG
+  - name: researchforge-frontend
+    newName: registry.example.invalid/researchforge/frontend
+    newTag: REPLACE_WITH_IMMUTABLE_TAG
+  - name: researchforge-sandbox
+    newName: registry.example.invalid/researchforge/sandbox
+    newTag: REPLACE_WITH_IMMUTABLE_TAG
+  - name: researchforge-trainer
+    newName: registry.example.invalid/researchforge/trainer
+    newTag: REPLACE_WITH_IMMUTABLE_TAG

@@ -1,0 +1,202 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+  api:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: &platform_environment
+      RESEARCHFORGE_ENV: ${RESEARCHFORGE_ENV:-production}
+      RESEARCHFORGE_AUTH_MODE: ${RESEARCHFORGE_AUTH_MODE:-production}
+      RESEARCHFORGE_API_WORKERS: ${RESEARCHFORGE_API_WORKERS:-2}
+      RESEARCHFORGE_CORS_ORIGINS: ${RESEARCHFORGE_CORS_ORIGINS:-http://localhost:3010,http://127.0.0.1:3010}
+      RESEARCHFORGE_API_KEY_ENV: ${RESEARCHFORGE_API_KEY_ENV-RESEARCHFORGE_API_KEY_SECRET}
+      RESEARCHFORGE_API_KEY_SECRET: file:///run/secrets/api_key
+      RESEARCHFORGE_METRICS_TOKEN: file:///run/secrets/metrics_token
+      RESEARCHFORGE_ALLOW_MOCK_MODELS: ${RESEARCHFORGE_ALLOW_MOCK_MODELS:-0}
+      RESEARCHFORGE_WORKFLOW_BACKEND: ${RESEARCHFORGE_WORKFLOW_BACKEND:-queue}
+      RESEARCHFORGE_TEMPORAL_ADDRESS: ${RESEARCHFORGE_TEMPORAL_ADDRESS:-temporal:7233}
+      RESEARCHFORGE_TEMPORAL_NAMESPACE: ${RESEARCHFORGE_TEMPORAL_NAMESPACE:-default}
+      RESEARCHFORGE_TEMPORAL_TASK_QUEUE: ${RESEARCHFORGE_TEMPORAL_TASK_QUEUE:-researchforge-workflows}
+      RESEARCHFORGE_JOB_DELIVERY_MODE: ${RESEARCHFORGE_JOB_DELIVERY_MODE:-stream}
+      RESEARCHFORGE_JOB_VISIBILITY_TIMEOUT_SECONDS: ${RESEARCHFORGE_JOB_VISIBILITY_TIMEOUT_SECONDS:-120}
+      RESEARCHFORGE_JOB_WORKSPACE_CONCURRENCY: ${RESEARCHFORGE_JOB_WORKSPACE_CONCURRENCY:-1}
+      RESEARCHFORGE_JOB_QUEUE_WAIT_TIMEOUT_SECONDS: ${RESEARCHFORGE_JOB_QUEUE_WAIT_TIMEOUT_SECONDS:-3600}
+      RESEARCHFORGE_JOB_MAX_RETRIES: ${RESEARCHFORGE_JOB_MAX_RETRIES:-2}
+      RESEARCHFORGE_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      RESEARCHFORGE_KAFKA_TOPIC: researchforge.events
+      RESEARCHFORGE_EVENT_BUS_BACKEND: ${RESEARCHFORGE_EVENT_BUS_BACKEND:-kafka}
+      RESEARCHFORGE_EVENT_BUS_PUBLISH_TIMEOUT_SECONDS: ${RESEARCHFORGE_EVENT_BUS_PUBLISH_TIMEOUT_SECONDS:-5}
+      RESEARCHFORGE_EVENT_BUS_MAX_RETRIES: ${RESEARCHFORGE_EVENT_BUS_MAX_RETRIES:-2}
+      RESEARCHFORGE_EVENT_BUS_RETRY_BACKOFF_SECONDS: ${RESEARCHFORGE_EVENT_BUS_RETRY_BACKOFF_SECONDS:-0.25}
+      RESEARCHFORGE_EVENT_BUS_CIRCUIT_BREAKER_SECONDS: ${RESEARCHFORGE_EVENT_BUS_CIRCUIT_BREAKER_SECONDS:-30}
+      RESEARCHFORGE_OTEL_ENABLED: "1"
+      RESEARCHFORGE_OTEL_ENDPOINT: http://otel-collector:4318/v1/traces
+      RESEARCHFORGE_KNOWLEDGE_BACKEND: ${RESEARCHFORGE_KNOWLEDGE_BACKEND:-local}
+      RESEARCHFORGE_EMBEDDING_BASE_URL: ${RESEARCHFORGE_EMBEDDING_BASE_URL:-}
+      RESEARCHFORGE_EMBEDDING_MODEL: ${RESEARCHFORGE_EMBEDDING_MODEL:-}
+      RESEARCHFORGE_NEO4J_URI: bolt://neo4j:7687
+      RESEARCHFORGE_NEO4J_PASSWORD: ${RESEARCHFORGE_NEO4J_PASSWORD:-researchforge_dev}
+      RESEARCHFORGE_MODEL_NAME: ${RESEARCHFORGE_MODEL_NAME:-}
+      RESEARCHFORGE_RESEARCH_MODEL_NAME: ${RESEARCHFORGE_RESEARCH_MODEL_NAME:-}
+      RESEARCHFORGE_MODEL_PROVIDER: ${RESEARCHFORGE_MODEL_PROVIDER:-openai_compatible}
+      RESEARCHFORGE_MODEL_API_KEY_ENV: ${RESEARCHFORGE_MODEL_API_KEY_ENV:-OPENAI_API_KEY}
+      RESEARCHFORGE_MODEL_CATALOG: ${RESEARCHFORGE_MODEL_CATALOG:-[]}
+      RESEARCHFORGE_MODEL_BASE_URL: ${RESEARCHFORGE_MODEL_BASE_URL:-}
+      RESEARCHFORGE_MODEL_TIMEOUT_SECONDS: ${RESEARCHFORGE_MODEL_TIMEOUT_SECONDS:-45}
+      # Prefer a mature external runtime when its image/CLI is configured.
+      # The resolver falls back to LangGraph, never silently to the legacy
+      # Native Runtime in production mode.
+      RESEARCHFORGE_AGENT_BACKEND: ${RESEARCHFORGE_AGENT_BACKEND:-auto}
+      RESEARCHFORGE_AGENT_COMMAND: ${RESEARCHFORGE_AGENT_COMMAND:-}
+      RESEARCHFORGE_AGENT_MODEL_MODE: ${RESEARCHFORGE_AGENT_MODEL_MODE:-gateway}
+      RESEARCHFORGE_AGENT_BRIDGE_URL: ${RESEARCHFORGE_AGENT_BRIDGE_URL:-http://api:8001/api/v1/models/bridge}
+      RESEARCHFORGE_AGENT_BRIDGE_TOKEN: file:///run/secrets/api_key
+      RESEARCHFORGE_AGENT_TIMEOUT_SECONDS: ${RESEARCHFORGE_AGENT_TIMEOUT_SECONDS:-900}
+      RESEARCHFORGE_AGENT_OUTPUT_LIMIT_BYTES: ${RESEARCHFORGE_AGENT_OUTPUT_LIMIT_BYTES:-128000}
+      RESEARCHFORGE_AGENT_MAX_DELEGATION_DEPTH: ${RESEARCHFORGE_AGENT_MAX_DELEGATION_DEPTH:-2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      RESEARCHFORGE_GITHUB_TOKEN: ${RESEARCHFORGE_GITHUB_TOKEN:-}
+      RESEARCHFORGE_GITHUB_APP_ID: ${RESEARCHFORGE_GITHUB_APP_ID:-}
+      RESEARCHFORGE_GITHUB_APP_PRIVATE_KEY: file:///run/secrets/github_app_private_key
+      RESEARCHFORGE_GITHUB_WEBHOOK_SECRET: ${RESEARCHFORGE_GITHUB_WEBHOOK_SECRET:-}
+      RESEARCHFORGE_GITHUB_WEBHOOK_PUBLIC_URL: ${RESEARCHFORGE_GITHUB_WEBHOOK_PUBLIC_URL:-}
+      RESEARCHFORGE_GITHUB_ISSUE_TRIGGER_LABEL: ${RESEARCHFORGE_GITHUB_ISSUE_TRIGGER_LABEL:-researchforge}
+      RESEARCHFORGE_GITHUB_SYNC_MAX_RETRIES: ${RESEARCHFORGE_GITHUB_SYNC_MAX_RETRIES:-2}
+      RESEARCHFORGE_GITHUB_SYNC_RETRY_BACKOFF_SECONDS: ${RESEARCHFORGE_GITHUB_SYNC_RETRY_BACKOFF_SECONDS:-1}
+      RESEARCHFORGE_GITHUB_SYNC_CIRCUIT_BREAKER_SECONDS: ${RESEARCHFORGE_GITHUB_SYNC_CIRCUIT_BREAKER_SECONDS:-30}
+      RESEARCHFORGE_SANDBOX_NETWORK_ENABLED: ${RESEARCHFORGE_SANDBOX_NETWORK_ENABLED:-0}
+      RESEARCHFORGE_SANDBOX_IMAGE: ${RESEARCHFORGE_SANDBOX_IMAGE:-researchforge-sandbox:latest}
+      RESEARCHFORGE_SANDBOX_KUBERNETES_RUNTIME_CLASS: ${RESEARCHFORGE_SANDBOX_KUBERNETES_RUNTIME_CLASS:-}
+      RESEARCHFORGE_SANDBOX_KUBERNETES_EGRESS_RULES: ${RESEARCHFORGE_SANDBOX_KUBERNETES_EGRESS_RULES:-[]}
+      RESEARCHFORGE_ARTIFACT_STORE_BACKEND: s3
+      RESEARCHFORGE_REPOSITORY_CACHE_ROOT: /var/lib/researchforge/workspaces/repositories
+      RESEARCHFORGE_SANDBOX_SHARED_WORKSPACE_ROOT: /var/lib/researchforge/workspaces
+      RESEARCHFORGE_SANDBOX_WORKSPACE_VOLUME: ${COMPOSE_PROJECT_NAME:-researchforge-local}_workspace-data
+      RESEARCHFORGE_ARTIFACT_STORE_BUCKET: ${RESEARCHFORGE_ARTIFACT_STORE_BUCKET:-researchforge}
+      RESEARCHFORGE_ARTIFACT_STORE_PREFIX: ${RESEARCHFORGE_ARTIFACT_STORE_PREFIX:-artifacts}
+      RESEARCHFORGE_ARTIFACT_STORE_ENDPOINT_URL: http://minio:9000
+      RESEARCHFORGE_ARTIFACT_STORE_REGION: us-east-1
+      RESEARCHFORGE_ARTIFACT_STORE_USE_SSL: "0"
+      RESEARCHFORGE_ARTIFACT_STORE_AUTO_CREATE_BUCKET: "1"
+      RESEARCHFORGE_ARTIFACT_STORE_SERVER_SIDE_ENCRYPTION: ${RESEARCHFORGE_ARTIFACT_STORE_SERVER_SIDE_ENCRYPTION:-}
+      RESEARCHFORGE_ARTIFACT_STORE_KMS_KEY_ID: ${RESEARCHFORGE_ARTIFACT_STORE_KMS_KEY_ID:-}
+      RESEARCHFORGE_ARTIFACT_STORE_WORKSPACE_PREFIX: ${RESEARCHFORGE_ARTIFACT_STORE_WORKSPACE_PREFIX:-1}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-researchforge}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-researchforge}
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    secrets:
+      - api_key
+      - metrics_token
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    volumes:
+      - workspace-data:/var/lib/researchforge/workspaces
+      - /var/run/docker.sock:/var/run/docker.sock
+  worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: *platform_environment
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    secrets:
+      - api_key
+      - metrics_token
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    volumes:
+      - workspace-data:/var/lib/researchforge/workspaces
+      - /var/run/docker.sock:/var/run/docker.sock
+  frontend:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+  redpanda:
+    image: redpandadata/redpanda:v25.1.1
+    command: ["redpanda", "start", "--overprovisioned", "--smp", "1", "--memory", "512M", "--reserve-memory", "0M", "--node-id", "0", "--check=false", "--kafka-addr", "internal://0.0.0.0:9092,external://0.0.0.0:9093", "--advertise-kafka-addr", "internal://redpanda:9092,external://localhost:${RESEARCHFORGE_REDPANDA_EXTERNAL_PORT:-29092}"]
+    ports:
+      - "127.0.0.1:${RESEARCHFORGE_REDPANDA_EXTERNAL_PORT:-29092}:9093"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  neo4j:
+    image: neo4j:5.26.0
+    environment:
+      NEO4J_AUTH: neo4j/${RESEARCHFORGE_NEO4J_PASSWORD:-researchforge_dev}
+    ports:
+      - "127.0.0.1:${RESEARCHFORGE_NEO4J_HTTP_PORT:-7474}:7474"
+      - "127.0.0.1:${RESEARCHFORGE_NEO4J_BOLT_PORT:-7687}:7687"
+    volumes: ["neo4j-data:/data"]
+  otel-collector:
+    image: otel/opentelemetry-collector:0.120.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./otel-collector.yml:/etc/otelcol/config.yaml:ro"]
+    depends_on: [tempo]
+  tempo-init:
+    image: grafana/tempo:2.7.2
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["mkdir -p /tmp/tempo/blocks /tmp/tempo/wal && chown -R 10001:10001 /tmp/tempo"]
+    volumes: ["tempo-data:/tmp/tempo"]
+  tempo:
+    image: grafana/tempo:2.7.2
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes: ["./tempo.yml:/etc/tempo.yml:ro", "tempo-data:/tmp/tempo"]
+    depends_on:
+      tempo-init:
+        condition: service_completed_successfully
+  grafana:
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    ports:
+      - "127.0.0.1:${RESEARCHFORGE_ALERTMANAGER_HOST_PORT:-19093}:9093"
+    volumes:
+      - ./alertmanager.local.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    restart: unless-stopped
+  prometheus:
+    volumes:
+      - ./prometheus.full.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
+    secrets:
+      - metrics_token
+
+volumes:
+  alertmanager-data:
+  neo4j-data:
+  tempo-data:
+  workspace-data:
+
+secrets:
+  api_key:
+    file: ${RESEARCHFORGE_API_KEY_FILE:?Set RESEARCHFORGE_API_KEY_FILE before starting the full stack}
+  metrics_token:
+    file: ${RESEARCHFORGE_METRICS_TOKEN_FILE:?Set RESEARCHFORGE_METRICS_TOKEN_FILE before starting the full stack}
+

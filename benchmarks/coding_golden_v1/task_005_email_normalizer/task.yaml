@@ -1,0 +1,24 @@
+id: task_005_email_normalizer
+title: Normalize user email addresses
+type: coding_fix
+repo_path: ./repo
+test_command: pytest
+timeout_seconds: 120
+max_steps: 20
+difficulty: level_1
+goal: >
+  Normalize email values by trimming surrounding whitespace and lowercasing without changing tests.
+success_criteria:
+  - all_tests_pass
+  - no_policy_violation
+  - patch_applies_cleanly
+tags:
+  - python
+  - pytest
+  - normalization
+execution_config:
+  task_kind: email
+  source_path: src/email_normalizer.py
+  usage_estimate:
+    step_tokens: 480
+    tool_tokens: 720

@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: researchforge-restore-drill
+  namespace: researchforge
+spec:
+  schedule: "0 5 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: researchforge-restore-drill
+        spec:
+          restartPolicy: Never
+          serviceAccountName: researchforge-restore-drill
+          automountServiceAccountToken: false
+          containers:
+            - name: restore-drill
+              image: REPLACE_WITH_API_IMAGE
+              imagePullPolicy: IfNotPresent
+              command: ["python", "scripts/restore_drill.py"]
+              env:
+                - name: RESEARCHFORGE_POSTGRES_DSN
+                  valueFrom:
+                    secretKeyRef:
+                      name: researchforge-restore-secrets
+                      key: restore-dsn
+                - name: RESEARCHFORGE_DB_TOOLS_CONTAINER
+                  value: ""
+              args: ["--output-dir", "/var/lib/researchforge/restore-drills"]
+              resources:
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {cpu: 1, memory: 1Gi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+                seccompProfile: {type: RuntimeDefault}
+              volumeMounts:
+                - name: reports
+                  mountPath: /var/lib/researchforge/restore-drills
+          volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: researchforge-restore-drills
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: researchforge-restore-drill
+  namespace: researchforge
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: researchforge-restore-drills
+  namespace: researchforge
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests: {storage: 5Gi}

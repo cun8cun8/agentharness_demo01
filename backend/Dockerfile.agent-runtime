@@ -1,0 +1,25 @@
+# Pinned, replaceable coding-agent runtime image.
+# ResearchForge supplies the workspace, model bridge, policy and validation;
+# this image supplies the open-source agent implementation.
+FROM python:3.12-slim
+
+ARG MINI_SWE_AGENT_VERSION=2.2.7
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOME=/home/agent
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates git \
+    && python -m pip install --upgrade "mini-swe-agent==${MINI_SWE_AGENT_VERSION}" \
+    && groupadd --gid 10001 agent \
+    && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/agent --shell /usr/sbin/nologin agent \
+    && mkdir -p /workspace \
+    && chown -R agent:agent /workspace /home/agent \
+    && rm -rf /var/lib/apt/lists/*
+
+USER 10001:10001
+WORKDIR /workspace
+
+ENTRYPOINT ["mini"]

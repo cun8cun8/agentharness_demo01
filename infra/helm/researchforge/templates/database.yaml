@@ -1,0 +1,45 @@
+{{- if .Values.database.cnpg.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: researchforge-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.database.cnpg.instances }}
+  storage:
+    size: {{ .Values.database.cnpg.storageSize | quote }}
+  bootstrap:
+    initdb:
+      database: researchforge
+      owner: researchforge
+  backup:
+    retentionPolicy: {{ .Values.database.cnpg.backupRetention | quote }}
+    barmanObjectStore:
+      destinationPath: {{ printf "s3://%s/researchforge" .Values.database.cnpg.backupBucket | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: researchforge-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: researchforge-backup-s3
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        encryption: AES256
+      data:
+        compression: gzip
+        encryption: AES256
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "researchforge.fullname" . }}-daily
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: researchforge-db
+{{- end }}

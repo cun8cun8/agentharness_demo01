@@ -1,0 +1,72 @@
+{{- if .Values.restoreDrill.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "researchforge.fullname" . }}-restore-drill
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "researchforge.fullname" . }}-restore-drills
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.restoreDrill.storageSize }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "researchforge.fullname" . }}-restore-drill
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.restoreDrill.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "researchforge.fullname" . }}-restore-drill
+          automountServiceAccountToken: false
+          containers:
+            - name: restore-drill
+              image: {{ .Values.restoreDrill.image | quote }}
+              imagePullPolicy: Always
+              command: ["python", "scripts/restore_drill.py"]
+              env:
+                - name: RESEARCHFORGE_POSTGRES_DSN
+                  valueFrom:
+                    secretKeyRef:
+                      name: researchforge-restore-secrets
+                      key: restore-dsn
+                - name: RESEARCHFORGE_DB_TOOLS_CONTAINER
+                  value: ""
+              args: ["--output-dir", "/var/lib/researchforge/restore-drills"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+                seccompProfile: { type: RuntimeDefault }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { cpu: 1, memory: 1Gi }
+              volumeMounts:
+                - name: reports
+                  mountPath: /var/lib/researchforge/restore-drills
+          volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: {{ include "researchforge.fullname" . }}-restore-drills
+{{- end }}

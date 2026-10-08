@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: researchforge-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+data:
+  RESEARCHFORGE_ENV: "production"
+  RESEARCHFORGE_AUTH_MODE: "production"
+  RESEARCHFORGE_API_WORKERS: "1"
+  RESEARCHFORGE_ALLOW_MOCK_MODELS: "0"
+  RESEARCHFORGE_PERSISTENCE: "1"
+  RESEARCHFORGE_STORE_BACKEND: "postgres"
+  RESEARCHFORGE_JOB_QUEUE_BACKEND: "redis"
+  RESEARCHFORGE_JOB_QUEUE_NAME: "researchforge:jobs"
+  RESEARCHFORGE_JOB_DELIVERY_MODE: "stream"
+  RESEARCHFORGE_JOB_VISIBILITY_TIMEOUT_SECONDS: "120"
+  RESEARCHFORGE_JOB_WORKSPACE_CONCURRENCY: "1"
+  RESEARCHFORGE_JOB_QUEUE_WAIT_TIMEOUT_SECONDS: "3600"
+  RESEARCHFORGE_JOB_MAX_RETRIES: "2"
+  RESEARCHFORGE_AGENT_BACKEND: "auto"
+  RESEARCHFORGE_AGENT_MAX_DELEGATION_DEPTH: "2"
+  RESEARCHFORGE_WORKFLOW_BACKEND: {{ .Values.config.workflowBackend | quote }}
+  RESEARCHFORGE_TEMPORAL_ADDRESS: {{ .Values.config.temporalAddress | quote }}
+  RESEARCHFORGE_TEMPORAL_NAMESPACE: {{ .Values.config.temporalNamespace | quote }}
+  RESEARCHFORGE_TEMPORAL_TASK_QUEUE: {{ .Values.config.temporalTaskQueue | quote }}
+  RESEARCHFORGE_EVENT_BUS_BACKEND: "redis"
+  RESEARCHFORGE_EVENT_BUS_CHANNEL: "researchforge:events"
+  RESEARCHFORGE_RATE_LIMIT_BACKEND: "redis"
+  RESEARCHFORGE_CORS_ORIGINS: {{ required "config.corsOrigins is required" .Values.config.corsOrigins | quote }}
+  RESEARCHFORGE_NETWORK_ENABLED: "1"
+  RESEARCHFORGE_SANDBOX_NETWORK_ENABLED: "0"
+  RESEARCHFORGE_SANDBOX_BACKEND: "kubernetes"
+  RESEARCHFORGE_SANDBOX_IMAGE: {{ required "runtime.sandboxImage is required" .Values.runtime.sandboxImage | quote }}
+  RESEARCHFORGE_SANDBOX_KUBERNETES_NAMESPACE: {{ .Release.Namespace | quote }}
+  RESEARCHFORGE_SANDBOX_KUBERNETES_WORKSPACE_PVC: {{ include "researchforge.workspaceClaim" . | quote }}
+  RESEARCHFORGE_SANDBOX_SHARED_WORKSPACE_ROOT: "/var/lib/researchforge/workspaces"
+  RESEARCHFORGE_SANDBOX_KUBERNETES_RUNTIME_CLASS: {{ .Values.config.sandboxRuntimeClass | quote }}
+  RESEARCHFORGE_SANDBOX_KUBERNETES_EGRESS_RULES: {{ .Values.config.sandboxEgressRules | toJson | quote }}
+  RESEARCHFORGE_SANDBOX_KUBERNETES_IMAGE_PULL_POLICY: "IfNotPresent"
+  RESEARCHFORGE_SANDBOX_KUBERNETES_ACTIVE_DEADLINE_SECONDS: "600"
+  RESEARCHFORGE_SANDBOX_KUBERNETES_KEEP_PODS: "0"
+  RESEARCHFORGE_TRAINING_BACKEND: "kubernetes"
+  RESEARCHFORGE_TRAINING_IMAGE: {{ required "runtime.trainerImage is required" .Values.runtime.trainerImage | quote }}
+  RESEARCHFORGE_TRAINING_ROOT: "/var/lib/researchforge/workspaces/training"
+  RESEARCHFORGE_TRAINING_KUBERNETES_NAMESPACE: {{ .Release.Namespace | quote }}
+  RESEARCHFORGE_TRAINING_KUBERNETES_WORKSPACE_PVC: {{ include "researchforge.workspaceClaim" . | quote }}
+  RESEARCHFORGE_TRAINING_KUBERNETES_SHARED_ROOT: "/var/lib/researchforge/workspaces"
+  RESEARCHFORGE_TRAINING_KUBERNETES_SERVICE_ACCOUNT: "researchforge-runtime"
+  RESEARCHFORGE_TRAINING_KUBERNETES_IMAGE_PULL_POLICY: "IfNotPresent"
+  RESEARCHFORGE_TRAINING_KUBERNETES_KEEP_JOBS: "0"
+  RESEARCHFORGE_TRAINING_KUBERNETES_NODE_SELECTOR: {{ .Values.training.nodeSelector | toJson | quote }}
+  RESEARCHFORGE_TRAINING_KUBERNETES_TOLERATIONS: {{ .Values.training.tolerations | toJson | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_BACKEND: "s3"
+  RESEARCHFORGE_ARTIFACT_STORE_BUCKET: {{ required "config.artifactBucket is required" .Values.config.artifactBucket | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_PREFIX: "artifacts"
+  RESEARCHFORGE_ARTIFACT_STORE_ENDPOINT_URL: {{ required "config.artifactEndpointUrl is required" .Values.config.artifactEndpointUrl | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_REGION: {{ .Values.config.artifactRegion | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_USE_SSL: "1"
+  RESEARCHFORGE_ARTIFACT_STORE_AUTO_CREATE_BUCKET: "0"
+  RESEARCHFORGE_ARTIFACT_STORE_SERVER_SIDE_ENCRYPTION: {{ .Values.config.artifactServerSideEncryption | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_KMS_KEY_ID: {{ .Values.config.artifactKmsKeyId | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_WORKSPACE_PREFIX: {{ .Values.config.artifactWorkspacePrefix | quote }}
+  RESEARCHFORGE_ARTIFACT_STORE_ACCESS_KEY_ID_ENV: "RESEARCHFORGE_ARTIFACT_STORE_ACCESS_KEY_ID"
+  RESEARCHFORGE_ARTIFACT_STORE_SECRET_ACCESS_KEY_ENV: "RESEARCHFORGE_ARTIFACT_STORE_SECRET_ACCESS_KEY"
+  RESEARCHFORGE_MODEL_BASE_URL: {{ required "config.modelBaseUrl is required" .Values.config.modelBaseUrl | quote }}
+  RESEARCHFORGE_MODEL_API_KEY_ENV: "OPENAI_API_KEY"
+  RESEARCHFORGE_MODEL_NAME: {{ required "config.modelName is required" .Values.config.modelName | quote }}
+  RESEARCHFORGE_RESEARCH_MODEL_NAME: {{ required "config.researchModelName is required" .Values.config.researchModelName | quote }}
+  RESEARCHFORGE_GITHUB_REDIRECT_URI: {{ required "config.githubRedirectUri is required" .Values.config.githubRedirectUri | quote }}
+  RESEARCHFORGE_GITHUB_WEBHOOK_PUBLIC_URL: {{ required "config.githubWebhookPublicUrl is required" .Values.config.githubWebhookPublicUrl | quote }}

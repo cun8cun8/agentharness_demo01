@@ -1,0 +1,123 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: false
+  labels: {}
+
+imagePullSecrets: []
+
+api:
+  replicas: 2
+  image:
+    repository: registry.example.invalid/researchforge/api
+    tag: REPLACE_WITH_IMMUTABLE_TAG
+    pullPolicy: Always
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "2", memory: 2Gi }
+
+worker:
+  replicas: 2
+  image:
+    repository: registry.example.invalid/researchforge/api
+    tag: REPLACE_WITH_IMMUTABLE_TAG
+    pullPolicy: Always
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "2", memory: 2Gi }
+
+frontend:
+  replicas: 2
+  image:
+    repository: registry.example.invalid/researchforge/frontend
+    tag: REPLACE_WITH_IMMUTABLE_TAG
+    pullPolicy: Always
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 250m, memory: 512Mi }
+
+runtime:
+  sandboxImage: registry.example.invalid/researchforge/sandbox:REPLACE_WITH_IMMUTABLE_TAG
+  trainerImage: registry.example.invalid/researchforge/trainer:REPLACE_WITH_IMMUTABLE_TAG
+  workspace:
+    existingClaim: ""
+    size: 100Gi
+    storageClass: ""
+
+training:
+  nodeSelector: {}
+  tolerations: []
+
+config:
+  corsOrigins: https://researchforge.example.invalid
+  workflowBackend: redis
+  temporalAddress: temporal-frontend.temporal.svc.cluster.local:7233
+  temporalNamespace: default
+  temporalTaskQueue: researchforge-workflows
+  modelBaseUrl: https://model-gateway.example.invalid/v1
+  modelName: REPLACE_WITH_PRODUCTION_MODEL
+  researchModelName: REPLACE_WITH_RESEARCH_MODEL
+  artifactBucket: REPLACE_WITH_ARTIFACT_BUCKET
+  artifactEndpointUrl: https://s3.example.invalid
+  artifactRegion: us-east-1
+  artifactServerSideEncryption: AES256
+  artifactKmsKeyId: ""
+  artifactWorkspacePrefix: true
+  sandboxRuntimeClass: ""
+  sandboxEgressRules: []
+  githubRedirectUri: https://researchforge.example.invalid/
+  githubWebhookPublicUrl: https://researchforge.example.invalid/api/v1/integrations/github/webhook
+
+externalSecrets:
+  enabled: true
+  store:
+    create: false
+    name: researchforge-production-secrets
+    provider: aws
+    region: us-east-1
+    serviceAccount: external-secrets
+  application:
+    targetName: researchforge-secrets
+    remoteKey: researchforge/production/application
+  backup:
+    remoteKey: researchforge/production/postgres-backup
+  restore:
+    remoteKey: researchforge/production/restore-drill
+
+database:
+  cnpg:
+    enabled: true
+    instances: 3
+    storageSize: 100Gi
+    backupBucket: REPLACE_WITH_BACKUP_BUCKET
+    backupRetention: 30d
+
+redis:
+  address: REPLACE_WITH_REDIS_HOST:6379
+  tls: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: researchforge.example.invalid
+  clusterIssuer: REPLACE_WITH_CLUSTER_ISSUER
+  tlsSecretName: researchforge-tls
+
+autoscaling:
+  api:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    cpuTarget: 70
+  worker:
+    kedaEnabled: true
+    minReplicas: 1
+    maxReplicas: 12
+    cooldownPeriod: 300
+
+restoreDrill:
+  enabled: true
+  schedule: "0 5 1 * *"
+  image: registry.example.invalid/researchforge/api:REPLACE_WITH_IMMUTABLE_TAG
+  storageSize: 5Gi

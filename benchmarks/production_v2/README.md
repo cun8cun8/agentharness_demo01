@@ -1,0 +1,1 @@
+Fixed production workflow fixtures: fresh offline Python wheel installation and Node native TAP tests. Business files deliberately contain defects. Dependency and test files must remain unchanged. These extend, rather than replace, coding_golden_v1.

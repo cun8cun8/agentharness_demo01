@@ -1,0 +1,10 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: researchforge-sandbox-default-deny
+  namespace: researchforge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-sandbox
+  policyTypes: [Ingress, Egress]

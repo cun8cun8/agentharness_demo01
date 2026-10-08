@@ -1,0 +1,54 @@
+name: ResearchForge Disaster Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_promotion:
+        description: Promote the already fenced DR database replica
+        type: boolean
+        default: false
+      change_id:
+        description: Approved incident or change identifier
+        required: true
+        type: string
+      cluster:
+        description: CNPG DR cluster name
+        required: true
+        default: researchforge-db-dr
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: researchforge-disaster-recovery
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    environment: disaster-recovery
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+      - name: Configure disaster-recovery cluster credentials
+        env:
+          KUBE_CONFIG: ${{ secrets.DR_KUBE_CONFIG_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBE_CONFIG" | base64 --decode > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Read-only DR preflight
+        run: python backend/scripts/dr_preflight.py --namespace researchforge
+      - name: Submit explicitly approved promotion
+        if: inputs.execute_promotion
+        run: |
+          python backend/scripts/dr_promote.py --namespace researchforge --cluster "${{ inputs.cluster }}" --change-id "${{ inputs.change_id }}" --primary-fenced --execute --confirm-promotion "${{ inputs.cluster }}"
+      - name: Remove runner credentials
+        if: always()
+        run: rm -f "$HOME/.kube/config"

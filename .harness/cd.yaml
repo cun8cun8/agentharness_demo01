@@ -1,0 +1,126 @@
+pipeline:
+  name: ResearchForge CD
+  identifier: researchforge_cd
+  projectIdentifier: YOUR_HARNESS_PROJECT_ID
+  orgIdentifier: YOUR_HARNESS_ORG_ID
+  tags:
+    application: researchforge
+    owner: platform
+  variables:
+    - name: IMAGE_REGISTRY
+      type: String
+      description: Registry prefix that contains api, frontend, sandbox, and trainer images.
+      required: true
+      value: <+input>
+    - name: IMAGE_TAG
+      type: String
+      description: Immutable image tag produced by the CI pipeline.
+      required: true
+      value: <+input>
+    - name: PRODUCTION_URL
+      type: String
+      description: Public URL used by the post-deploy acceptance probe.
+      required: true
+      value: <+input>
+  stages:
+    - stage:
+        name: Production Deployment
+        identifier: production_deployment
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: researchforge
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  manifests:
+                    - manifest:
+                        identifier: production_kustomize
+                        type: Kustomize
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              connectorRef: YOUR_CODE_REPO_CONNECTOR_ID
+                              gitFetchType: Branch
+                              branch: main
+                              folderPath: .harness/production-overlay
+                              repoName: YOUR_CODE_REPO_NAME
+                          skipResourceVersioning: false
+          environment:
+            environmentRef: production
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: researchforge_cluster
+                inputs:
+                  identifier: researchforge_cluster
+                  type: KubernetesDirect
+                  spec:
+                    connectorRef: YOUR_KUBERNETES_CLUSTER_CONNECTOR_ID
+                    namespace: researchforge
+                    releaseName: researchforge
+          execution:
+            steps:
+              - step:
+                  name: Rolling deployment
+                  identifier: rolling_deployment
+                  type: K8sRollingDeploy
+                  timeout: 20m
+                  spec:
+                    skipDryRun: false
+                    pruningEnabled: false
+                    instanceUnitType: Count
+                    instanceUnitCount: 1
+              - step:
+                  name: Authenticated acceptance
+                  identifier: authenticated_acceptance
+                  type: ShellScript
+                  timeout: 15m
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          set -euo pipefail
+                          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+                            "<+pipeline.variables.PRODUCTION_URL>/health" > /tmp/health.json
+                          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+                            -H "X-API-Key: ${RESEARCHFORGE_API_KEY}" \
+                            "<+pipeline.variables.PRODUCTION_URL>/api/v1/system/production-readiness?verify_dependencies=true&verify_runtime=true" > /tmp/production-readiness.json
+                          grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"' /tmp/production-readiness.json
+                          echo "Production health and readiness probes passed."
+                    environmentVariables:
+                      - name: RESEARCHFORGE_API_KEY
+                        type: Secret
+                        value: YOUR_PROBE_API_KEY_SECRET_ID
+                    executionTarget: {}
+                    outputVariables: []
+              - step:
+                  name: Production approval
+                  identifier: production_approval
+                  type: HarnessApproval
+                  timeout: 1d
+                  spec:
+                    approvalMessage: Confirm production health and business metrics before completing the release.
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - YOUR_PRODUCTION_APPROVER_GROUP_ID
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+            rollbackSteps:
+              - step:
+                  name: Roll back Kubernetes release
+                  identifier: rollback_kubernetes_release
+                  type: K8sRollingRollback
+                  timeout: 15m
+                  spec: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback

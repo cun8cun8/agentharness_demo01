@@ -1,0 +1,123 @@
+name: ResearchForge CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: researchforge_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: researchforge_test
+        ports: ["15473:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres -d researchforge_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7
+        ports: ["16373:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate open-source release prerequisites
+        run: python backend/scripts/oss_preflight.py
+      - name: Generate source release manifest
+        run: python backend/scripts/release_manifest.py --output .run/ci-release-manifest.json --version "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: researchforge-source-manifest-${{ github.sha }}
+          path: .run/ci-release-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt pytest
+      - name: Run test suite
+        working-directory: backend
+        env:
+          RESEARCHFORGE_ENV: local
+          RESEARCHFORGE_TEST_POSTGRES_DSN: postgresql://postgres:researchforge_test@127.0.0.1:15473/researchforge_test
+          RESEARCHFORGE_TEST_REDIS_URL: redis://127.0.0.1:16373/0
+        run: python -m pytest -q
+      - name: Check frontend scripts
+        run: node --check frontend/app.js && node --check frontend/operations.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build TypeScript workbench
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run check
+          npm run build
+      - name: Compile operational Python entrypoints
+        run: |
+          python -m py_compile \
+            backend/app/api/runs.py \
+            backend/app/infra/store.py \
+            backend/app/infra/record_store.py \
+            backend/scripts/run_coding_v1_acceptance.py \
+            backend/scripts/run_complete_acceptance.py
+      - name: Validate Compose
+        env:
+          RESEARCHFORGE_API_KEY_FILE: ${{ runner.temp }}/researchforge-api-key
+          RESEARCHFORGE_METRICS_TOKEN_FILE: ${{ runner.temp }}/researchforge-metrics-token
+        run: |
+          printf 'ci-only-api-key\n' > "$RESEARCHFORGE_API_KEY_FILE"
+          printf 'ci-only-metrics-token\n' > "$RESEARCHFORGE_METRICS_TOKEN_FILE"
+          docker compose -f infra/docker-compose.yml -f infra/docker-compose.full.yml config --quiet
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+      - name: Validate Kubernetes overlays
+        run: python backend/scripts/validate_kubernetes_overlays.py
+      - name: Validate strict benchmark assets
+        run: python backend/scripts/validate_benchmark_suite.py
+      - name: Install Helm
+        uses: azure/setup-helm@v5.0.1
+        with:
+          version: v3.18.4
+      - name: Validate Helm chart
+        run: |
+          helm lint infra/helm/researchforge
+          python backend/scripts/validate_helm_chart.py
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.6
+          terraform_wrapper: false
+      - name: Validate Terraform module
+        working-directory: infra/terraform/aws
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate -no-color
+      - name: Validate Terraform state backend
+        working-directory: infra/terraform/state-backend
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate -no-color
+      - name: Browser acceptance
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workbench-browser-results
+          path: frontend/test-results
+          retention-days: 7

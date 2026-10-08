@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: researchforge
+resources:
+  - 00-namespace.yaml
+  - 01-rbac.yaml
+  - 02-configmap.yaml
+  - 03-sandbox-default-deny.yaml
+  - 04-storage.yaml
+  - 05-runtime.yaml
+  - 06-services.yaml
+  - 07-ingress.yaml

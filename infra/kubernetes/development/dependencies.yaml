@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: researchforge
+spec:
+  selector:
+    app.kubernetes.io/name: researchforge-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: researchforge-postgres
+  namespace: researchforge
+  labels:
+    app.kubernetes.io/name: researchforge-postgres
+    app.kubernetes.io/part-of: researchforge
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: researchforge-postgres
+        app.kubernetes.io/part-of: researchforge
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: researchforge
+            - name: POSTGRES_USER
+              value: researchforge
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U researchforge -d researchforge"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: researchforge
+spec:
+  selector:
+    app.kubernetes.io/name: researchforge-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: researchforge-redis
+  namespace: researchforge
+  labels:
+    app.kubernetes.io/name: researchforge-redis
+    app.kubernetes.io/part-of: researchforge
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: researchforge-redis
+        app.kubernetes.io/part-of: researchforge
+    spec:
+      containers:
+        - name: redis
+          image: redis:7
+          command: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

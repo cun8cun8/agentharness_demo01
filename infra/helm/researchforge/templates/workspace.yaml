@@ -1,0 +1,17 @@
+{{- if not .Values.runtime.workspace.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "researchforge.workspaceClaim" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "researchforge.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteMany"]
+  {{- if .Values.runtime.workspace.storageClass }}
+  storageClassName: {{ .Values.runtime.workspace.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.runtime.workspace.size }}
+{{- end }}

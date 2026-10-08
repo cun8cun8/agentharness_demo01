@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: researchforge-api
+  namespace: researchforge
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          imagePullPolicy: Always
+          env:
+            - name: RESEARCHFORGE_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-db-app
+                  key: uri
+          volumeMounts:
+            - name: artifacts
+              $patch: delete
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: artifacts
+          $patch: delete

@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: researchforge-api
+  namespace: researchforge
+  labels:
+    app.kubernetes.io/name: researchforge-api
+    app.kubernetes.io/part-of: researchforge
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: researchforge-api
+        app.kubernetes.io/part-of: researchforge
+    spec:
+      serviceAccountName: researchforge-runtime
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: researchforge-api:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: researchforge-config
+            - secretRef:
+                name: researchforge-secrets
+          env:
+            - name: RESEARCHFORGE_JOB_WORKER_ENABLED
+              value: "0"
+            # Connection URLs are secrets because they can embed credentials.
+            # Explicit env entries override the public ConfigMap defaults.
+            - name: RESEARCHFORGE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-secrets
+                  key: RESEARCHFORGE_REDIS_URL
+            - name: RESEARCHFORGE_EVENT_BUS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-secrets
+                  key: RESEARCHFORGE_EVENT_BUS_URL
+          volumeMounts:
+            - name: artifacts
+              mountPath: /var/lib/researchforge/artifacts
+            - name: sandbox-workspace
+              mountPath: /var/lib/researchforge/workspaces
+            - name: tmp
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: researchforge-artifacts
+        - name: sandbox-workspace
+          persistentVolumeClaim:
+            claimName: researchforge-sandbox-workspace
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: researchforge-worker
+  namespace: researchforge
+  labels:
+    app.kubernetes.io/name: researchforge-worker
+    app.kubernetes.io/part-of: researchforge
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: researchforge-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: researchforge-worker
+        app.kubernetes.io/part-of: researchforge
+    spec:
+      serviceAccountName: researchforge-runtime
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: worker
+          image: researchforge-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "app.worker"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          envFrom:
+            - configMapRef:
+                name: researchforge-config
+            - secretRef:
+                name: researchforge-secrets
+          env:
+            - name: RESEARCHFORGE_JOB_WORKER_ENABLED
+              value: "1"
+            - name: RESEARCHFORGE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-secrets
+                  key: RESEARCHFORGE_REDIS_URL
+            - name: RESEARCHFORGE_EVENT_BUS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: researchforge-secrets
+                  key: RESEARCHFORGE_EVENT_BUS_URL
+          volumeMounts:
+            - name: artifacts
+              mountPath: /var/lib/researchforge/artifacts
+            - name: sandbox-workspace
+              mountPath: /var/lib/researchforge/workspaces
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: researchforge-artifacts
+        - name: sandbox-workspace
+          persistentVolumeClaim:
+            claimName: researchforge-sandbox-workspace
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi

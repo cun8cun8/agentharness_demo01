@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ResearchForge 智能体工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">RF</span>
+          <span>ResearchForge</span>
+        </div>
+        <nav class="nav" aria-label="工作台导航">
+          <a class="nav-item active" href="#tasks">任务</a>
+          <a class="nav-item" href="#trace">轨迹</a>
+          <a class="nav-item" href="#benchmark">评测</a>
+          <a class="nav-item" href="#dataset">数据</a>
+          <a class="nav-item" href="#policy">策略</a>
+          <a class="nav-item" href="#audit">审计</a>
+          <a class="nav-item" href="#memory">记忆</a>
+          <a class="nav-item" href="#approvals">审批</a>
+          <a class="nav-item" href="#research">研究</a>
+          <a class="nav-item" href="#platform">平台</a>
+          <a class="nav-item" href="#knowledge">知识检索</a>
+          <a class="nav-item" href="#experiments">实验执行</a>
+          <a class="nav-item" href="#publishing">代码发布</a>
+        </nav>
+        <div class="connection">
+          <span id="apiDot" class="dot muted"></span>
+          <span id="apiStatus" role="status">正在连接</span>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">代码智能体执行台</p>
+            <h1>任务控制台</h1>
+          </div>
+          <div class="actions">
+            <details class="credential-menu"><summary>密钥登录</summary><form id="apiKeyLoginForm"><label>管理员密钥<input id="loginApiKeyInput" type="password" autocomplete="off" required /></label><button type="submit" class="primary-button">登录</button><output id="loginResult" role="status"></output></form></details>
+            <button id="githubLoginButton" class="ghost-button" type="button">GitHub 登录</button>
+            <button id="logoutButton" class="ghost-button" type="button" hidden>退出登录</button>
+            <button id="seedButton" class="ghost-button" type="button">导入黄金任务</button>
+            <button id="pauseButton" class="ghost-button" type="button" disabled>暂停运行</button>
+            <button id="resumeButton" class="ghost-button" type="button" disabled>恢复运行</button>
+            <button id="cancelButton" class="ghost-button" type="button" disabled>取消运行</button>
+            <button id="runButton" class="primary-button" type="button">运行选中任务</button>
+          </div>
+        </header>
+
+        <section class="metrics" aria-label="运行指标">
+          <article class="metric">
+            <small>成功率</small>
+            <strong id="successRate">0%</strong>
+          </article>
+          <article class="metric">
+            <small>运行次数</small>
+            <strong id="runCount">0</strong>
+          </article>
+          <article class="metric">
+            <small>平均成本</small>
+            <strong id="avgCost">$0</strong>
+          </article>
+          <article class="metric">
+            <small>工具调用</small>
+            <strong id="toolCallCount">0</strong>
+          </article>
+        </section>
+
+        <section class="main-grid" id="tasks">
+          <section class="panel task-panel">
+            <div class="panel-header">
+              <h2>任务</h2>
+              <span id="taskCount">0</span>
+            </div>
+            <div class="task-filters">
+              <label>
+                <span>搜索任务</span>
+                <input id="taskSearchInput" type="search" placeholder="搜索标题、目标、仓库或 ID" />
+              </label>
+              <label>
+                <span>状态</span>
+                <select id="taskStatusFilter">
+                  <option value="">全部状态</option>
+                  <option value="created">已创建</option>
+                  <option value="queued">排队中</option>
+                  <option value="running">运行中</option>
+                  <option value="paused">已暂停</option>
+                  <option value="completed">已完成</option>
+                  <option value="failed">失败</option>
+                  <option value="blocked">已阻止</option>
+                </select>
+              </label>
+              <label>
+                <span>类型</span>
+                <select id="taskTypeFilter">
+                  <option value="">全部类型</option>
+                  <option value="coding">代码任务</option>
+                  <option value="research">研究任务</option>
+                </select>
+              </label>
+              <label>
+                <span>工作区</span>
+                <select id="taskWorkspaceFilter"></select>
+              </label>
+              <button id="clearTaskFiltersButton" class="mini-button" type="button">清空</button>
+            </div>
+            <form id="taskForm" class="task-form">
+              <label>
+                <span>标题</span>
+                <input id="titleInput" name="title" value="修复日期解析边界问题" />
+              </label>
+              <label>
+                <span>所属工作区</span>
+                <select id="taskWorkspaceSelect"></select>
+              </label>
+              <label>
+                <span>仓库路径</span>
+                <input id="repoInput" name="repo_path" value="benchmarks/coding_golden_v1/task_001_date_parser/repo" />
+              </label>
+              <label>
+                <span>测试命令</span>
+                <input id="testInput" name="test_command" value="python -m pytest -q" />
+              </label>
+              <label>
+                <span>目标</span>
+                <textarea id="goalInput" name="goal" rows="3">修复失败的日期解析测试，不修改测试期望。</textarea>
+              </label>
+              <label>
+                <span>执行配置 JSON</span>
+                <textarea id="executionConfigInput" name="execution_config" rows="3" placeholder='{"task_kind":"date","source_path":"src/date_parser.py"}'>{}</textarea>
+              </label>
+              <div class="form-row">
+                <label>
+                  <span>智能体策略</span>
+                  <select id="strategySelect"></select>
+                </label>
+                <label>
+                  <span>安全策略</span>
+                  <select id="policySelect"></select>
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  <span>最大步骤</span>
+                  <input id="maxStepsInput" name="max_steps" type="number" min="1" value="20" />
+                </label>
+                <label>
+                  <span>测试超时秒数</span>
+                  <input id="testTimeoutInput" name="test_timeout_seconds" type="number" min="5" value="120" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  <span>最大工具调用</span>
+                  <input id="maxToolCallsInput" name="max_tool_calls" type="number" min="1" value="40" />
+                </label>
+                <label>
+                  <span>最大模型成本</span>
+                  <input id="maxCostInput" name="max_model_cost" type="number" min="0.001" step="0.001" value="2.0" />
+                </label>
+              </div>
+              <div class="task-form-actions">
+                <button class="secondary-button" type="submit">创建任务</button>
+                <button id="saveTaskButton" class="ghost-button" type="button">保存当前任务</button>
+              </div>
+            </form>
+            <div id="taskDetail" class="task-detail"></div>
+            <div id="taskList" class="task-list"></div>
+          </section>
+
+          <section class="panel trace-panel" id="trace">
+            <div class="panel-header">
+              <h2>智能体轨迹</h2>
+              <div class="trace-header-actions">
+                <select id="runHistorySelect" aria-label="选择历史运行"></select>
+                <span id="runId">暂无运行</span>
+              </div>
+            </div>
+            <div id="timeline" class="timeline"></div>
+          </section>
+
+          <section class="panel result-panel">
+            <div class="panel-header">
+              <h2>运行证据</h2>
+              <span id="runStatus">空闲</span>
+            </div>
+            <div class="test-grid">
+              <div class="test-strip">
+                <span>基线测试</span>
+                <strong id="baselineTestMetric">0/0</strong>
+              </div>
+              <div class="test-strip">
+                <span>最终测试</span>
+                <strong id="testMetric">0/0</strong>
+              </div>
+              <div class="test-strip">
+                <span>通过数变化</span>
+                <strong id="testDeltaMetric">0</strong>
+              </div>
+            </div>
+            <div class="evidence-submetric">
+              <span>轨迹完整度</span>
+              <strong id="traceMetric">0%</strong>
+            </div>
+            <div class="artifact-block">
+              <h3>工具调用</h3>
+              <div id="toolCallList" class="tool-call-list"></div>
+            </div>
+            <div class="artifact-block">
+              <h3>文件树</h3>
+              <div id="fileTreeList" class="file-tree"></div>
+            </div>
+            <div class="artifact-block">
+              <h3>代码差异</h3>
+              <pre id="diffBlock">暂无差异产物</pre>
+            </div>
+            <div class="artifact-block">
+              <h3>文件内容</h3>
+              <pre id="fileContentBlock">请选择文件</pre>
+            </div>
+            <div class="artifact-block">
+              <h3>测试日志</h3>
+              <div class="log-grid">
+                <pre id="baselineLogBlock">暂无基线日志</pre>
+                <pre id="validationLogBlock">暂无验证日志</pre>
+              </div>
+            </div>
+            <div class="artifact-block">
+              <h3>评审结果</h3>
+              <pre id="criticReviewBlock">暂无评审结果</pre>
+            </div>
+            <div class="artifact-block">
+              <h3>模型辅助</h3>
+              <pre id="modelAssistBlock">暂无模型辅助记录</pre>
+            </div>
+            <div class="artifact-block">
+              <h3>报告</h3>
+              <pre id="reportBlock">暂无报告产物</pre>
+            </div>
+            <div class="artifact-block">
+              <a id="runExportLink" class="link-button" href="#" aria-disabled="true">导出运行压缩包</a>
+            </div>
+          </section>
+        </section>
+
+        <section class="lower-grid">
+          <section class="panel" id="benchmark">
+            <div class="panel-header">
+              <h2>评测中心</h2>
+              <div class="actions panel-actions">
+                <button id="benchmarkButton" class="mini-button" type="button">运行评测</button>
+                <button id="goldenAcceptanceButton" class="mini-button" type="button">批量验收 10 题</button>
+                <button id="compareButton" class="mini-button" type="button">比较策略</button>
+                <button id="gateButton" class="mini-button" type="button">发布门禁</button>
+              </div>
+            </div>
+            <div class="benchmark-status">
+              <span>最近门禁</span>
+              <strong id="gateStatus">未检查</strong>
+              <span>批量验收</span>
+              <strong id="acceptanceStatus">未执行</strong>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>策略 / 任务</th>
+                  <th>成功</th>
+                  <th>分数</th>
+                  <th>轨迹</th>
+                  <th>回归</th>
+                  <th>失败原因</th>
+                </tr>
+              </thead>
+              <tbody id="benchmarkRows"></tbody>
+            </table>
+            <div class="benchmark-history">
+              <div>
+                <h3>最近评测</h3>
+                <div id="evaluationHistory" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>发布门禁</h3>
+                <div id="gateHistory" class="dataset-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" id="dataset">
+            <div class="panel-header">
+              <h2>数据飞轮</h2>
+              <span id="datasetCount">0 条候选</span>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>质量</span>
+                <select id="qualitySelect">
+                  <option value="good">优</option>
+                  <option value="average">中</option>
+                  <option value="bad">差</option>
+                </select>
+              </label>
+              <label>
+                <span>用途</span>
+                <select id="useCaseSelect">
+                  <option value="sft_candidate">SFT 候选</option>
+                  <option value="failure_case">失败样本</option>
+                  <option value="preference_candidate">偏好候选</option>
+                </select>
+              </label>
+              <label>
+                <span>轨迹类型</span>
+                <select id="traceTypeSelect">
+                  <option value="SUCCESS_TRACE">成功轨迹</option>
+                  <option value="FAILURE_TRACE">失败轨迹</option>
+                  <option value="RECOVERY_TRACE">恢复轨迹</option>
+                  <option value="HUMAN_CORRECTED_TRACE">人工修正轨迹</option>
+                </select>
+              </label>
+              <label>
+                <span>失败分类</span>
+                <input id="failureTypeInput" type="text" placeholder="例如 TESTS_STILL_FAILING" />
+              </label>
+              <label>
+                <span>错误步骤</span>
+                <select id="traceErrorStepSelect">
+                  <option value="">未指定</option>
+                </select>
+              </label>
+              <label class="annotation-toggle">
+                <input id="usableForSftInput" type="checkbox" />
+                <span>可用于 SFT</span>
+              </label>
+              <label class="annotation-toggle">
+                <input id="usableForPreferenceInput" type="checkbox" />
+                <span>可用于偏好训练</span>
+              </label>
+              <label class="wide-label">
+                <span>根因</span>
+                <textarea id="rootCauseInput" rows="2" placeholder="人工确认的根因或定位结论"></textarea>
+              </label>
+              <label class="wide-label">
+                <span>人工建议动作</span>
+                <textarea id="preferredActionInput" rows="2" placeholder="下一步建议或更优修复动作"></textarea>
+              </label>
+              <label class="wide-label">
+                <span>备注</span>
+                <textarea id="labelNotesInput" rows="2">来自控制台的人工标注。</textarea>
+              </label>
+              <div class="form-row">
+                <button id="labelButton" class="secondary-button" type="button">保存运行标注</button>
+                <button id="newAnnotationButton" class="ghost-button" type="button">新建标注</button>
+              </div>
+              <a id="exportLink" class="link-button" href="http://127.0.0.1:8001/api/v1/datasets/export">导出 JSONL 数据</a>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>优选运行</span>
+                <select id="chosenRunSelect"></select>
+              </label>
+              <label>
+                <span>拒选运行</span>
+                <select id="rejectedRunSelect"></select>
+              </label>
+              <label class="wide-label">
+                <span>偏好理由</span>
+                <textarea id="preferenceRationaleInput" rows="2">优选运行具备更完整的修复证据。</textarea>
+              </label>
+              <button id="preferenceButton" class="secondary-button" type="button">创建偏好对</button>
+              <a id="preferenceExportLink" class="link-button" href="http://127.0.0.1:8001/api/v1/datasets/preference-pairs/export">导出偏好数据</a>
+              <a id="failureExportLink" class="link-button" href="http://127.0.0.1:8001/api/v1/datasets/failure-cases/export">导出失败样本</a>
+              <a id="trainingExportLink" class="link-button" href="http://127.0.0.1:8001/api/v1/datasets/training-bundle/export?include_pending=true">导出训练包</a>
+              <button id="snapshotButton" class="secondary-button" type="button">生成数据集版本</button>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>质量筛选</span>
+                <select id="qualityFilterSelect">
+                  <option value="">全部质量</option>
+                  <option value="good">优</option>
+                  <option value="average">中</option>
+                  <option value="bad">差</option>
+                </select>
+              </label>
+              <label>
+                <span>轨迹筛选</span>
+                <select id="traceFilterSelect">
+                  <option value="">全部轨迹</option>
+                  <option value="SUCCESS_TRACE">成功轨迹</option>
+                  <option value="FAILURE_TRACE">失败轨迹</option>
+                  <option value="RECOVERY_TRACE">恢复轨迹</option>
+                </select>
+              </label>
+              <label>
+                <span>用途筛选</span>
+                <select id="useCaseFilterSelect">
+                  <option value="">全部用途</option>
+                  <option value="sft_candidate">SFT 候选</option>
+                  <option value="failure_case">失败样本</option>
+                  <option value="preference_candidate">偏好候选</option>
+                </select>
+              </label>
+              <label>
+                <span>状态筛选</span>
+                <select id="statusFilterSelect">
+                  <option value="">全部状态</option>
+                  <option value="candidate">候选</option>
+                  <option value="reviewed">已审核</option>
+                  <option value="approved">已入库</option>
+                  <option value="rejected">已拒绝</option>
+                </select>
+              </label>
+            </div>
+            <div class="artifact-block">
+              <h3>质量报告</h3>
+              <pre id="datasetQualityBlock">暂无质量报告</pre>
+            </div>
+            <div id="datasetList" class="dataset-list"></div>
+            <div class="artifact-block">
+              <h3>数据集版本</h3>
+              <div id="snapshotList" class="dataset-list"></div>
+            </div>
+          </section>
+
+          <section class="panel" id="audit">
+            <div class="panel-header">
+              <h2>审计日志</h2>
+              <span id="auditLogCount">0 条记录</span>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>动作</span>
+                <input id="auditActionFilterInput" type="text" placeholder="tool.policy_preview" />
+              </label>
+              <label>
+                <span>资源类型</span>
+                <input id="auditResourceTypeFilterInput" type="text" placeholder="run / tool / agent_strategy" />
+              </label>
+              <label>
+                <span>资源 ID</span>
+                <input id="auditResourceIdFilterInput" type="text" placeholder="运行、工具或策略 ID" />
+              </label>
+              <label>
+                <span>决策</span>
+                <select id="auditDecisionFilterSelect">
+                  <option value="">全部决策</option>
+                  <option value="allow">允许</option>
+                  <option value="deny">拒绝</option>
+                  <option value="active">已发布</option>
+                  <option value="candidate">候选发布</option>
+                  <option value="blocked">已阻断</option>
+                  <option value="completed">已完成</option>
+                  <option value="failed">失败</option>
+                </select>
+              </label>
+              <button id="auditFilterButton" class="secondary-button" type="button">筛选审计</button>
+              <button id="auditClearFilterButton" class="ghost-button" type="button">清空</button>
+            </div>
+            <div id="auditLogList" class="dataset-list"></div>
+          </section>
+
+          <section class="panel" id="memory">
+            <div class="panel-header">
+              <h2>项目记忆</h2>
+              <span id="memoryCount">0 条记忆</span>
+            </div>
+            <div class="dataset-actions data-form memory-form">
+              <label>
+                <span>记忆 ID</span>
+                <input id="memoryIdInput" type="text" placeholder="自动生成" readonly />
+              </label>
+              <label>
+                <span>来源任务 ID</span>
+                <input id="memoryTaskIdInput" type="text" placeholder="可选" />
+              </label>
+              <label>
+                <span>运行 ID</span>
+                <input id="memoryRunIdInput" type="text" placeholder="可选" />
+              </label>
+              <label>
+                <span>范围</span>
+                <select id="memoryScopeSelect">
+                  <option value="project">项目</option>
+                  <option value="failure">失败</option>
+                  <option value="strategy">策略</option>
+                  <option value="success">成功</option>
+                </select>
+              </label>
+              <label>
+                <span>类型</span>
+                <select id="memoryTypeSelect">
+                  <option value="failure">失败</option>
+                  <option value="project">项目</option>
+                  <option value="strategy">策略</option>
+                  <option value="success">成功</option>
+                </select>
+              </label>
+              <label>
+                <span>键</span>
+                <input id="memoryKeyInput" type="text" placeholder="例如 date_parser_edge_case" />
+              </label>
+              <label>
+                <span>状态</span>
+                <select id="memoryStatusSelect">
+                  <option value="active">已启用</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </label>
+              <label class="wide-label">
+                <span>摘要</span>
+                <textarea id="memorySummaryInput" rows="2" placeholder="一句话总结该记忆"></textarea>
+              </label>
+              <label class="wide-label">
+                <span>详情 JSON</span>
+                <textarea id="memoryDetailInput" rows="4" placeholder='{"root_cause":"..."}'>{}</textarea>
+              </label>
+              <div class="form-row">
+                <button id="saveMemoryButton" class="secondary-button" type="button">保存记忆</button>
+                <button id="resetMemoryButton" class="ghost-button" type="button">重置表单</button>
+              </div>
+            </div>
+            <div id="memoryList" class="dataset-list"></div>
+          </section>
+
+          <section class="panel" id="approvals">
+            <div class="panel-header">
+              <h2>审批请求</h2>
+              <span id="approvalCount">0 条请求</span>
+            </div>
+            <div id="approvalList" class="dataset-list"></div>
+          </section>
+
+          <section class="panel" id="research">
+            <div class="panel-header">
+              <h2>自动研究</h2>
+              <span><span id="researchCount">0 个研究简报</span> · 验收 <span id="researchAcceptanceStatus">未执行</span></span>
+            </div>
+            <div class="dataset-actions data-form">
+              <label class="wide-label">
+                <span>研究问题</span>
+                <textarea id="researchQuestionInput" rows="2">如何评估代码智能体修复失败测试的可靠性？</textarea>
+              </label>
+              <label>
+                <span>领域</span>
+                <input id="researchDomainInput" value="agent-eval" />
+              </label>
+              <button id="researchButton" class="secondary-button" type="button">生成简报</button>
+              <button id="notebookButton" class="secondary-button" type="button">运行笔记本</button>
+              <button id="researchAcceptanceButton" class="secondary-button" type="button">研究验收 10 题</button>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>证据标题</span>
+                <input id="evidenceTitleInput" placeholder="可选，默认使用正文首行" />
+              </label>
+              <label>
+                <span>来源类型</span>
+                <select id="evidenceSourceTypeSelect">
+                  <option value="manual">手工录入</option>
+                  <option value="pdf">PDF 文件</option>
+                  <option value="note">研究笔记</option>
+                  <option value="url">外部链接</option>
+                </select>
+              </label>
+              <label>
+                <span>文件路径</span>
+                <input id="evidenceFilePathInput" placeholder="可选，例如 D:\research\paper.pdf" />
+              </label>
+              <label class="wide-label">
+                <span>证据正文</span>
+                <textarea id="evidenceContentInput" rows="3" placeholder="粘贴摘要、结果或证据片段"></textarea>
+              </label>
+              <button id="importEvidenceButton" class="secondary-button" type="button">导入证据</button>
+            </div>
+            <div class="dataset-actions data-form">
+              <label>
+                <span>目标简报</span>
+                <select id="researchBriefSelect"></select>
+              </label>
+              <button id="attachEvidenceButton" class="secondary-button" type="button">挂载选中证据</button>
+            </div>
+            <div id="researchEvidenceList" class="dataset-list"></div>
+            <a class="link-button" href="http://127.0.0.1:8001/api/v1/research/evidence/export">导出证据数据</a>
+            <div id="researchAcceptanceSummary" class="dataset-list"></div>
+            <div id="researchList" class="dataset-list"></div>
+          </section>
+
+          <section class="panel" id="platform">
+            <div class="panel-header">
+              <h2>平台能力</h2>
+              <div class="platform-header-actions">
+                <label>
+                  <span>当前成员</span>
+                  <select id="sessionUserSelect"></select>
+                </label>
+                <span id="platformStatus">未加载</span>
+              </div>
+            </div>
+            <div class="platform-grid">
+              <div>
+                <h3>模型网关</h3>
+                <div class="dataset-actions data-form">
+                  <label>
+                    <span>配置 ID</span>
+                    <input id="modelIdInput" type="text" value="model_coding_custom_v1" />
+                  </label>
+                  <label>
+                    <span>模型名称</span>
+                    <input id="modelNameInput" type="text" value="mock-coding-agent" />
+                  </label>
+                  <label>
+                    <span>提供方</span>
+                    <select id="modelProviderSelect">
+                      <option value="mock">本地模拟</option>
+                      <option value="openai_compatible">OpenAI 兼容</option>
+                      <option value="openai">OpenAI</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>角色</span>
+                    <select id="modelRoleSelect">
+                      <option value="coding">代码</option>
+                      <option value="research">研究</option>
+                      <option value="evaluation">评测</option>
+                      <option value="critic">评审</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>上下文窗口</span>
+                    <input id="modelContextWindowInput" type="number" min="1" value="128000" />
+                  </label>
+                  <label>
+                    <span>成本 / 千 Token</span>
+                    <input id="modelCostInput" type="number" min="0" step="0.001" value="0.002" />
+                  </label>
+                  <label>
+                    <span>状态</span>
+                    <select id="modelStatusSelect">
+                      <option value="active">已启用</option>
+                      <option value="inactive">已停用</option>
+                      <option value="draft">草稿</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>来源</span>
+                    <select id="modelSourceSelect">
+                      <option value="environment">环境注入</option>
+                      <option value="mock">默认种子</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>接口地址</span>
+                    <input id="modelBaseUrlInput" type="text" placeholder="https://api.openai.com/v1" />
+                  </label>
+                  <label>
+                    <span>密钥环境变量</span>
+                    <input id="modelApiKeyEnvInput" type="text" placeholder="OPENAI_API_KEY" />
+                  </label>
+                  <label class="wide-label">
+                    <span>策略 ID 列表</span>
+                    <input id="modelStrategyIdsInput" type="text" placeholder="repair_with_trace_v2, repair_with_critic_v3" />
+                  </label>
+                  <label>
+                    <span>最大重试</span>
+                    <input id="modelMaxRetriesInput" type="number" min="0" value="1" />
+                  </label>
+                  <div class="form-row">
+                    <button id="saveModelButton" class="secondary-button" type="button">保存模型配置</button>
+                    <button id="resetModelButton" class="ghost-button" type="button">重置表单</button>
+                  </div>
+                </div>
+                <div id="modelList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>模型试调</h3>
+                <div class="inline-form">
+                  <textarea id="modelPromptInput" rows="3">用中文总结当前智能体执行平台的下一步工程重点。</textarea>
+                  <button id="modelInvokeButton" class="mini-button" type="button">试调模型</button>
+                </div>
+                <pre id="modelInvokeBlock">暂无试调结果</pre>
+              </div>
+              <div>
+                <h3>扩展清单</h3>
+                <div id="extensionList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>内置工具</h3>
+                <div id="toolList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>策略配置</h3>
+                <div class="dataset-actions data-form strategy-form">
+                  <label>
+                    <span>策略 ID</span>
+                    <input id="strategyIdInput" type="text" value="repair_custom_v1" />
+                  </label>
+                  <label>
+                    <span>策略名称</span>
+                    <input id="strategyNameInput" type="text" value="自定义策略 V1" />
+                  </label>
+                  <label>
+                    <span>任务类型</span>
+                    <select id="strategyTaskTypeSelect">
+                      <option value="coding">代码</option>
+                      <option value="research">研究</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>状态</span>
+                    <select id="strategyStatusSelect">
+                      <option value="draft">草稿</option>
+                      <option value="candidate">候选</option>
+                      <option value="active">已启用</option>
+                      <option value="rolled_back">已回滚</option>
+                      <option value="archived">已归档</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>最大步骤</span>
+                    <input id="strategyMaxStepsInput" type="number" min="1" value="20" />
+                  </label>
+                  <label class="strategy-toggle">
+                    <input id="strategyMemoryEnabledInput" type="checkbox" />
+                    <span>启用记忆</span>
+                  </label>
+                  <label class="wide-label">
+                    <span>描述</span>
+                    <textarea id="strategyDescriptionInput" rows="2">用于配置策略提示词、运行时参数和生命周期。</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>规划提示词</span>
+                    <textarea id="strategyPlannerPromptInput" rows="3">创建清晰、可执行的修复计划。</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>修复提示词</span>
+                    <textarea id="strategyRepairPromptInput" rows="3">生成最小、可验证的补丁。</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>评审提示词</span>
+                    <textarea id="strategyCriticPromptInput" rows="3">评审补丁风险、测试证据和回归可能性。</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>工具选择策略 JSON</span>
+                    <textarea id="strategyToolSelectionPolicyInput" rows="3" placeholder='{"allowed_tools":["file.read","file.write_patch"]}'>{}</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>运行时配置 JSON</span>
+                    <textarea id="strategyRuntimeConfigInput" rows="4" placeholder='{"precheck":true,"retry":true,"critic":false}'>{}</textarea>
+                  </label>
+                  <div class="form-row">
+                    <button id="saveStrategyButton" class="secondary-button" type="button">保存策略配置</button>
+                    <button id="resetStrategyButton" class="ghost-button" type="button">重置表单</button>
+                  </div>
+                </div>
+                <div id="strategyRuntimeList" class="dataset-list"></div>
+              </div>
+              <div id="policy">
+                <h3>安全策略</h3>
+                <div class="dataset-actions data-form policy-form">
+                  <label>
+                    <span>策略 ID</span>
+                    <input id="policyIdInput" type="text" value="policy_custom_v1" />
+                  </label>
+                  <label>
+                    <span>策略名称</span>
+                    <input id="policyNameInput" type="text" value="自定义安全策略 V1" />
+                  </label>
+                  <label>
+                    <span>状态</span>
+                    <select id="policyStatusSelect">
+                      <option value="active">已启用</option>
+                      <option value="inactive">已停用</option>
+                      <option value="draft">草稿</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>最大步骤</span>
+                    <input id="policyMaxStepsInput" type="number" min="1" value="20" />
+                  </label>
+                  <label>
+                    <span>最大运行秒数</span>
+                    <input id="policyMaxRuntimeSecondsInput" type="number" min="1" value="600" />
+                  </label>
+                  <label>
+                    <span>最大补丁文件</span>
+                    <input id="policyMaxPatchFilesInput" type="number" min="1" value="3" />
+                  </label>
+                  <label>
+                    <span>最大变更行</span>
+                    <input id="policyMaxChangedLinesInput" type="number" min="1" value="80" />
+                  </label>
+                  <label class="policy-toggle">
+                    <input id="policyNetworkEnabledInput" type="checkbox" />
+                    <span>允许网络</span>
+                  </label>
+                  <label class="wide-label">
+                    <span>允许工具</span>
+                    <textarea id="policyAllowedToolsInput" rows="2">file.read, file.write_patch, shell.run, git.diff, test.run, report.write</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>允许命令</span>
+                    <textarea id="policyAllowedCommandsInput" rows="2">pytest, python, python3, git</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>禁止命令</span>
+                    <textarea id="policyBlockedCommandsInput" rows="3">rm -rf, del /s, rmdir /s, format, chmod, chown, Invoke-WebRequest, curl | sh, wget | bash, ssh, scp, sudo, powershell -EncodedCommand, Invoke-Expression</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>需审批工具</span>
+                    <textarea id="policyRequiresApprovalToolsInput" rows="2"></textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>受保护读取模式</span>
+                    <textarea id="policyProtectedReadPatternsInput" rows="2">.env, .env.*, *.pem, *.key, id_rsa, id_ed25519, secrets.*</textarea>
+                  </label>
+                  <label class="wide-label">
+                    <span>受保护写入模式</span>
+                    <textarea id="policyProtectedWritePatternsInput" rows="2">.env, .env.*, *.pem, *.key, id_rsa, id_ed25519, secrets.*, tests/*, test_*</textarea>
+                  </label>
+                  <div class="form-row">
+                    <button id="savePolicyButton" class="secondary-button" type="button">保存安全策略</button>
+                    <button id="resetPolicyButton" class="ghost-button" type="button">重置表单</button>
+                  </div>
+                </div>
+                <div class="dataset-actions data-form policy-preview-form">
+                  <label>
+                    <span>预检工具</span>
+                    <select id="policyPreviewToolSelect"></select>
+                  </label>
+                  <label>
+                    <span>预检策略</span>
+                    <select id="policyPreviewPolicySelect"></select>
+                  </label>
+                  <label class="wide-label">
+                    <span>仓库路径</span>
+                    <input id="policyPreviewRepoInput" type="text" value="benchmarks/coding_golden_v1/task_001_date_parser/repo" />
+                  </label>
+                  <label class="wide-label">
+                    <span>工具输入 JSON</span>
+                    <textarea id="policyPreviewInput" rows="3">{"path":"src/date_parser.py"}</textarea>
+                  </label>
+                  <button id="policyPreviewButton" class="secondary-button" type="button">执行策略预检</button>
+                </div>
+                <pre id="policyPreviewBlock">暂无策略预检结果</pre>
+                <div id="policyList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>队列状态</h3>
+                <div id="jobList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>工作区与成员</h3>
+                <div class="dataset-actions data-form">
+                  <label>
+                    <span>工作区名称</span>
+                    <input id="workspaceNameInput" type="text" value="研发工作区" />
+                  </label>
+                  <label>
+                    <span>负责人 ID</span>
+                    <input id="workspaceOwnerInput" type="text" value="user_admin" />
+                  </label>
+                  <label>
+                    <span>工作区状态</span>
+                    <select id="workspaceStatusSelect">
+                      <option value="active">已启用</option>
+                      <option value="paused">已暂停</option>
+                      <option value="archived">已归档</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>任务数量上限</span>
+                    <input id="workspaceMaxTasksInput" type="number" min="1" step="1" value="1000" />
+                  </label>
+                  <label>
+                    <span>并发运行上限</span>
+                    <input id="workspaceMaxActiveRunsInput" type="number" min="1" step="1" value="8" />
+                  </label>
+                  <label>
+                    <span>每日成本上限（美元）</span>
+                    <input id="workspaceMaxDailyCostInput" type="number" min="0" step="0.01" value="50" />
+                  </label>
+                  <div class="form-row">
+                    <button id="saveWorkspaceButton" class="secondary-button" type="button">保存工作区</button>
+                    <button id="resetWorkspaceButton" class="ghost-button" type="button">新建工作区</button>
+                  </div>
+                </div>
+                <div class="dataset-actions data-form">
+                  <label>
+                    <span>成员工作区</span>
+                    <select id="userWorkspaceSelect"></select>
+                  </label>
+                  <label>
+                    <span>邮箱</span>
+                    <input id="userEmailInput" type="text" value="operator@researchforge.local" />
+                  </label>
+                  <label>
+                    <span>姓名</span>
+                    <input id="userNameInput" type="text" value="研发操作员" />
+                  </label>
+                  <label>
+                    <span>角色</span>
+                    <select id="userRoleSelect">
+                      <option value="operator">操作员</option>
+                      <option value="admin">管理员</option>
+                      <option value="viewer">只读</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>成员状态</span>
+                    <select id="userStatusSelect">
+                      <option value="active">已启用</option>
+                      <option value="disabled">已停用</option>
+                    </select>
+                  </label>
+                  <div class="form-row">
+                    <button id="saveUserButton" class="secondary-button" type="button">保存成员</button>
+                    <button id="resetUserButton" class="ghost-button" type="button">新建成员</button>
+                  </div>
+                </div>
+                <div id="workspaceList" class="dataset-list"></div>
+                <pre id="workspaceUsageBlock">暂无工作区配额使用量</pre>
+                <div id="userList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>仓库连接</h3>
+                <div class="inline-form">
+                  <input id="repositoryNameInput" type="text" value="GitHub 仓库" placeholder="仓库名称" />
+                  <select id="repositoryProviderSelect">
+                    <option value="local">本地</option>
+                    <option value="github">GitHub 仓库</option>
+                    <option value="git">本地 Git</option>
+                  </select>
+                  <input id="repositoryUrlInput" type="text" placeholder="仓库地址" />
+                  <input id="repositoryLocalPathInput" type="text" value="benchmarks/coding_golden_v1/task_001_date_parser/repo" placeholder="本地路径或缓存路径" />
+                  <input id="repositoryDefaultBranchInput" type="text" value="main" placeholder="默认分支" />
+                  <input id="repositoryCredentialInput" type="text" placeholder="凭据标识" />
+                  <button id="createRepositoryButton" class="mini-button" type="button">创建连接</button>
+                  <button id="resetRepositoryButton" class="ghost-button" type="button">新建连接</button>
+                </div>
+                <div id="repositoryList" class="dataset-list"></div>
+              </div>
+              <div>
+                <h3>沙箱检查</h3>
+                <div class="inline-form">
+                  <button id="sandboxCheckButton" class="mini-button" type="button">检查沙箱</button>
+                </div>
+                <pre id="sandboxCheckBlock">暂无检查结果</pre>
+              </div>
+              <div>
+                <h3>遥测指标</h3>
+                <pre id="telemetryBlock">暂无指标</pre>
+              </div>
+              <div>
+                <h3>P0 验收</h3>
+                <div id="readinessList" class="dataset-list"></div>
+                <small id="readinessSummary">暂无验收状态</small>
+              </div>
+            </div>
+          </section>
+        </section>
+        <section class="operation-section" id="knowledge">
+          <h2>知识检索</h2>
+          <form id="knowledgeSearchForm" class="operation-form">
+            <label>工作区<select id="knowledgeWorkspace"></select></label>
+            <label class="grow">查询<input id="knowledgeQuery" type="search" required maxlength="2000" /></label>
+            <button type="submit" class="primary-button">检索</button>
+            <label class="check-label"><input id="syncKnowledgeGraph" type="checkbox" />同步关系图</label>
+            <button id="indexKnowledgeButton" type="button" class="ghost-button">重建索引</button>
+            <button id="loadKnowledgeGraph" type="button" class="ghost-button">引用关系</button>
+          </form>
+          <output id="knowledgeStatus" role="status"></output>
+          <div id="knowledgeResults" class="operation-results"></div>
+        </section>
+        <section class="operation-section" id="experiments">
+          <h2>实验执行</h2>
+          <form id="executeNotebookForm" class="operation-editor">
+            <div class="operation-form"><label class="grow">研究简报<select id="notebookBrief" required></select></label><label>时限（秒）<input id="notebookTimeout" type="number" min="1" max="600" value="60" required /></label></div>
+            <div id="notebookCells"><label>代码单元 1<textarea class="notebook-source" rows="5" spellcheck="false" required>values = [2, 4, 6, 8]
+print({"mean": sum(values) / len(values)})</textarea></label></div>
+            <div class="operation-form"><button id="addNotebookCell" type="button" class="ghost-button">添加单元</button><button type="submit" class="primary-button">执行实验</button></div>
+          </form>
+          <output id="notebookStatus" role="status"></output><div id="notebookOutput" class="operation-results"></div>
+        </section>
+        <section class="operation-section" id="publishing">
+          <h2>代码发布</h2>
+          <form id="publishPatchForm" class="operation-editor">
+            <div class="operation-form"><label class="grow">仓库<select id="publishRepository" required></select></label><label class="grow">成功运行<select id="publishRun" required></select></label></div>
+            <div class="operation-form"><label class="grow">分支<input id="publishBranch" value="researchforge/repair" pattern="researchforge/.+" required /></label><label class="grow">提交标题<input id="publishTitle" value="修复测试失败" maxlength="200" required /></label></div>
+            <label>变更说明<textarea id="publishBody" rows="3"></textarea></label>
+            <div class="operation-form"><label class="check-label"><input id="publishPush" type="checkbox" />推送分支</label><label class="check-label"><input id="publishPr" type="checkbox" />创建草稿合并请求</label><button type="submit" class="primary-button">生成发布</button></div>
+          </form>
+          <output id="publishStatus" role="status"></output><div id="publishResult" class="operation-results"></div>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+    <script src="./operations.js"></script>
+  </body>
+</html>

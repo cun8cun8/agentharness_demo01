@@ -1,0 +1,3 @@
+# Optional durable workflow backend. Install this only when
+# RESEARCHFORGE_WORKFLOW_BACKEND=temporal is enabled.
+temporalio>=1.10,<2

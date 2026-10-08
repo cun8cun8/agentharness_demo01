@@ -1,0 +1,158 @@
+name: Release ResearchForge
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy tested images to the protected production environment
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: researchforge-production
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate open-source release prerequisites
+        run: python backend/scripts/oss_preflight.py
+      - run: pip install -r backend/requirements.txt
+      - run: python -m pytest -q
+        working-directory: backend
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Generate reproducible release manifest
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          REVISION: ${{ github.sha }}
+        run: |
+          python backend/scripts/release_manifest.py \
+            --output release-manifest.json \
+            --version "$REVISION" \
+            --require-images \
+            --image "api=$IMAGE-api:$REVISION" \
+            --image "frontend=$IMAGE-frontend:$REVISION" \
+            --image "sandbox=$IMAGE-sandbox:$REVISION" \
+            --image "trainer=$IMAGE-trainer:$REVISION"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.name }}-api:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          build-args: RESEARCHFORGE_BACKEND_URL=http://researchforge-api:8001
+          push: true
+          tags: ${{ steps.image.outputs.name }}-frontend:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile.sandbox
+          push: true
+          tags: ${{ steps.image.outputs.name }}-sandbox:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile.trainer
+          push: true
+          tags: ${{ steps.image.outputs.name }}-trainer:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Block high and critical image vulnerabilities
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          REVISION: ${{ github.sha }}
+        run: |
+          for component in api frontend sandbox trainer; do
+            docker run --rm -v "$HOME/.docker:/root/.docker:ro" aquasec/trivy:0.58.1 image --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL "$IMAGE-$component:$REVISION"
+          done
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: researchforge-release-${{ github.sha }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+  deploy:
+    if: inputs.deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: azure/setup-kubectl@v4
+      - name: Configure cluster credentials
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBE_CONFIG" | base64 --decode > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Production cluster preflight
+        run: python backend/scripts/cluster_preflight.py --namespace researchforge
+      - name: Rolling deployment
+        id: rollout
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          REVISION: ${{ github.sha }}
+        run: |
+          kubectl -n researchforge patch deployment researchforge-api --type=strategic --patch "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"api\",\"image\":\"$IMAGE-api:$REVISION\",\"env\":[{\"name\":\"RESEARCHFORGE_SANDBOX_IMAGE\",\"value\":\"$IMAGE-sandbox:$REVISION\"},{\"name\":\"RESEARCHFORGE_TRAINING_IMAGE\",\"value\":\"$IMAGE-trainer:$REVISION\"}]}]}}}}"
+          kubectl -n researchforge rollout status deployment/researchforge-api --timeout=300s
+          kubectl -n researchforge patch deployment researchforge-worker --type=strategic --patch "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"worker\",\"image\":\"$IMAGE-api:$REVISION\",\"env\":[{\"name\":\"RESEARCHFORGE_SANDBOX_IMAGE\",\"value\":\"$IMAGE-sandbox:$REVISION\"},{\"name\":\"RESEARCHFORGE_TRAINING_IMAGE\",\"value\":\"$IMAGE-trainer:$REVISION\"}]}]}}}}"
+          kubectl -n researchforge rollout status deployment/researchforge-worker --timeout=300s
+          kubectl -n researchforge patch deployment researchforge-frontend --type=strategic --patch "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"frontend\",\"image\":\"$IMAGE-frontend:$REVISION\"}]}}}}"
+          kubectl -n researchforge rollout status deployment/researchforge-frontend --timeout=300s
+      - name: Authenticated dependency acceptance
+        env:
+          RESEARCHFORGE_API_KEY: ${{ secrets.PROBE_API_KEY }}
+          BASE_URL: ${{ vars.PRODUCTION_URL }}
+        run: python backend/scripts/acceptance_probe.py --base-url "$BASE_URL" --production
+      - name: Read-only production load acceptance
+        env:
+          RESEARCHFORGE_API_KEY: ${{ secrets.PROBE_API_KEY }}
+          BASE_URL: ${{ vars.PRODUCTION_URL }}
+          LOAD_REQUESTS: ${{ vars.PRODUCTION_LOAD_REQUESTS || '100' }}
+          LOAD_CONCURRENCY: ${{ vars.PRODUCTION_LOAD_CONCURRENCY || '10' }}
+          MAX_P95_MS: ${{ vars.PRODUCTION_MAX_P95_MS || '1000' }}
+        run: |
+          python backend/scripts/load_probe.py --base-url "$BASE_URL" --path /api/v1/system/readiness --requests "$LOAD_REQUESTS" --concurrency "$LOAD_CONCURRENCY" --max-p95-ms "$MAX_P95_MS"
+      - name: Roll back failed deployment
+        if: failure() && steps.rollout.outcome != 'skipped'
+        run: |
+          kubectl -n researchforge rollout undo deployment/researchforge-api
+          kubectl -n researchforge rollout undo deployment/researchforge-worker
+          kubectl -n researchforge rollout undo deployment/researchforge-frontend
+          kubectl -n researchforge rollout status deployment/researchforge-api --timeout=300s
+          kubectl -n researchforge rollout status deployment/researchforge-worker --timeout=300s
+          kubectl -n researchforge rollout status deployment/researchforge-frontend --timeout=300s
+      - name: Remove runner credentials
+        if: always()
+        run: rm -f "$HOME/.kube/config"

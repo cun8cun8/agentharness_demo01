@@ -1,0 +1,10 @@
+ResearchForge
+Copyright 2026 ResearchForge contributors
+
+Licensed under the Apache License, Version 2.0. The full license text is in
+the LICENSE file.
+
+This product may include software distributed under separate copyright and
+license terms. See the corresponding dependency metadata and license files
+before redistributing a release. The release workflow produces provenance and
+SBOM attestations for published container images.

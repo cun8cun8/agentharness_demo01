@@ -1,0 +1,24 @@
+id: coding_fix_004
+title: Force failure recovery sample
+type: coding_fix
+repo_path: ./repo
+test_command: pytest
+timeout_seconds: 120
+max_steps: 20
+difficulty: level_2
+goal: >
+  Force failure after patch to exercise failure reporting.
+success_criteria:
+  - failure_report_generated
+  - trace_recorded
+tags:
+  - python
+  - pytest
+  - failure_case
+execution_config:
+  task_kind: force_failure
+  source_path: src/sample.py
+  force_failure: true
+  usage_estimate:
+    step_tokens: 500
+    tool_tokens: 740

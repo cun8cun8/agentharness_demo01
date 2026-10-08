@@ -1,0 +1,220 @@
+pipeline:
+  name: ResearchForge CI
+  identifier: researchforge_ci
+  projectIdentifier: YOUR_HARNESS_PROJECT_ID
+  orgIdentifier: YOUR_HARNESS_ORG_ID
+  tags:
+    application: researchforge
+    owner: platform
+  variables:
+    - name: IMAGE_REPOSITORY_PREFIX
+      type: String
+      description: Registry repository prefix, for example registry.example.com/researchforge.
+      required: true
+      value: <+input>
+  properties:
+    ci:
+      codebase:
+        connectorRef: YOUR_CODE_REPO_CONNECTOR_ID
+        repoName: YOUR_CODE_REPO_NAME
+        build: <+input>
+  stages:
+    - stage:
+        name: Validate and Test
+        identifier: validate_and_test
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          sharedPaths:
+            - /root/.cache
+          execution:
+            steps:
+              - parallel:
+                  - step:
+                      name: PostgreSQL
+                      identifier: postgres
+                      type: Background
+                      spec:
+                        connectorRef: account.harnessImage
+                        image: pgvector/pgvector:pg16
+                        shell: Sh
+                        envVariables:
+                          POSTGRES_DB: researchforge_test
+                          POSTGRES_USER: postgres
+                          POSTGRES_PASSWORD: ci-only-test-password
+                        portBindings:
+                          "5432": "15473"
+                  - step:
+                      name: Redis
+                      identifier: redis
+                      type: Background
+                      spec:
+                        connectorRef: account.harnessImage
+                        image: redis:7
+                        shell: Sh
+                        portBindings:
+                          "6379": "16373"
+              - step:
+                  name: Wait for dependencies
+                  identifier: wait_for_dependencies
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: python:3.12-slim
+                    shell: Bash
+                    command: |-
+                      python - <<'PY'
+                      import socket
+                      import time
+
+                      targets = [("postgres", 15473), ("redis", 16373)]
+                      deadline = time.time() + 90
+                      while time.time() < deadline:
+                          try:
+                              for target in targets:
+                                  connection = socket.create_connection(target, timeout=2)
+                                  connection.close()
+                          except OSError:
+                              time.sleep(2)
+                              continue
+                          else:
+                              print("dependencies are reachable")
+                              raise SystemExit(0)
+                      raise SystemExit("dependency readiness timeout")
+                      PY
+              - step:
+                  name: Backend tests
+                  identifier: backend_tests
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: python:3.12-slim
+                    shell: Bash
+                    command: |-
+                      python -m pip install --disable-pip-version-check -r backend/requirements.txt pytest
+                      export RESEARCHFORGE_ENV=local
+                      export RESEARCHFORGE_TEST_POSTGRES_DSN=postgresql://postgres:ci-only-test-password@postgres:15473/researchforge_test
+                      export RESEARCHFORGE_TEST_REDIS_URL=redis://redis:16373/0
+                      python -m pytest -q backend
+              - step:
+                  name: Frontend build
+                  identifier: frontend_build
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: node:22-bookworm-slim
+                    shell: Bash
+                    command: |-
+                      node --check frontend/app.js
+                      node --check frontend/operations.js
+                      cd frontend
+                      npm ci
+                      npm run check
+                      npm run build
+              - step:
+                  name: Benchmark and Harness config validation
+                  identifier: benchmark_and_harness_config_validation
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: python:3.12-slim
+                    shell: Bash
+                    command: |-
+                      python -m pip install --disable-pip-version-check -r backend/requirements.txt pyyaml
+                      python backend/scripts/validate_benchmark_suite.py
+                      python backend/scripts/validate_harness_configs.py
+              - step:
+                  name: Kubernetes and Helm validation
+                  identifier: kubernetes_and_helm_validation
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: alpine/helm:3.18.4
+                    shell: Sh
+                    command: |-
+                      apk add --no-cache python3 py3-pip curl ca-certificates
+                      python3 -m pip install --break-system-packages pyyaml
+                      curl -fsSL -o /usr/local/bin/kubectl https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl
+                      chmod +x /usr/local/bin/kubectl
+                      python3 backend/scripts/validate_kubernetes_overlays.py
+                      helm lint infra/helm/researchforge
+                      python3 backend/scripts/validate_helm_chart.py
+              - step:
+                  name: Upload validation report
+                  identifier: upload_validation_report
+                  type: Run
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: alpine:3.20
+                    shell: Sh
+                    command: |-
+                      mkdir -p /harness/artifacts
+                      printf 'ResearchForge Harness CI passed at %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /harness/artifacts/ci-summary.txt
+                    reportPaths:
+                      - /harness/artifacts/ci-summary.txt
+    - stage:
+        name: Build Immutable Images
+        identifier: build_immutable_images
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  name: Build API image
+                  identifier: build_api_image
+                  type: BuildAndPushDockerRegistry
+                  spec:
+                    connectorRef: YOUR_IMAGE_REGISTRY_CONNECTOR_ID
+                    repo: <+pipeline.variables.IMAGE_REPOSITORY_PREFIX>/api
+                    tags:
+                      - <+pipeline.sequenceId>
+                    dockerfile: backend/Dockerfile
+                    caching: true
+              - step:
+                  name: Build frontend image
+                  identifier: build_frontend_image
+                  type: BuildAndPushDockerRegistry
+                  spec:
+                    connectorRef: YOUR_IMAGE_REGISTRY_CONNECTOR_ID
+                    repo: <+pipeline.variables.IMAGE_REPOSITORY_PREFIX>/frontend
+                    tags:
+                      - <+pipeline.sequenceId>
+                    dockerfile: frontend/Dockerfile
+                    caching: true
+                    buildArgs:
+                      RESEARCHFORGE_BACKEND_URL: http://researchforge-api:8001
+              - step:
+                  name: Build sandbox image
+                  identifier: build_sandbox_image
+                  type: BuildAndPushDockerRegistry
+                  spec:
+                    connectorRef: YOUR_IMAGE_REGISTRY_CONNECTOR_ID
+                    repo: <+pipeline.variables.IMAGE_REPOSITORY_PREFIX>/sandbox
+                    tags:
+                      - <+pipeline.sequenceId>
+                    dockerfile: backend/Dockerfile.sandbox
+                    caching: true
+              - step:
+                  name: Build trainer image
+                  identifier: build_trainer_image
+                  type: BuildAndPushDockerRegistry
+                  spec:
+                    connectorRef: YOUR_IMAGE_REGISTRY_CONNECTOR_ID
+                    repo: <+pipeline.variables.IMAGE_REPOSITORY_PREFIX>/trainer
+                    tags:
+                      - <+pipeline.sequenceId>
+                    dockerfile: backend/Dockerfile.trainer
+                    caching: true

@@ -1,0 +1,41 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: researchforge-db
+  namespace: researchforge
+spec:
+  instances: 3
+  storage:
+    size: 100Gi
+  bootstrap:
+    initdb:
+      database: researchforge
+      owner: researchforge
+  backup:
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: s3://REPLACE_WITH_BACKUP_BUCKET/researchforge
+      s3Credentials:
+        accessKeyId:
+          name: researchforge-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: researchforge-backup-s3
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        encryption: AES256
+      data:
+        compression: gzip
+        encryption: AES256
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: researchforge-daily
+  namespace: researchforge
+spec:
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: researchforge-db

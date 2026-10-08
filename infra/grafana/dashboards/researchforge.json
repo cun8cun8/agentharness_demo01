@@ -1,0 +1,15 @@
+{
+  "uid": "researchforge-platform",
+  "title": "ResearchForge 运行监控",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id": 1, "title": "运行总数", "type": "stat", "datasource": {"type": "prometheus", "uid": "researchforge-prometheus"}, "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0}, "targets": [{"refId": "A", "expr": "researchforge_runs_total"}]},
+    {"id": 2, "title": "排队任务", "type": "stat", "datasource": {"type": "prometheus", "uid": "researchforge-prometheus"}, "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0}, "targets": [{"refId": "A", "expr": "researchforge_jobs_queued_total"}]},
+    {"id": 3, "title": "失败任务", "type": "stat", "datasource": {"type": "prometheus", "uid": "researchforge-prometheus"}, "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0}, "targets": [{"refId": "A", "expr": "researchforge_jobs_failed_total"}]},
+    {"id": 4, "title": "模型调用与回退", "type": "timeseries", "datasource": {"type": "prometheus", "uid": "researchforge-prometheus"}, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5}, "targets": [{"refId": "A", "expr": "researchforge_model_invocations_total", "legendFormat": "模型调用"}, {"refId": "B", "expr": "researchforge_model_fallbacks_total", "legendFormat": "回退"}]},
+    {"id": 5, "title": "训练样本", "type": "timeseries", "datasource": {"type": "prometheus", "uid": "researchforge-prometheus"}, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5}, "targets": [{"refId": "A", "expr": "researchforge_training_bundle_sft_candidates_total", "legendFormat": "SFT 候选"}]}
+  ]
+}

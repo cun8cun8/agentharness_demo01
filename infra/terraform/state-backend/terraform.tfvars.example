@@ -1,0 +1,8 @@
+region          = "ap-southeast-1"
+bucket_name     = "REPLACE_WITH_GLOBALLY_UNIQUE_TERRAFORM_STATE_BUCKET"
+lock_table_name = "researchforge-terraform-lock"
+
+tags = {
+  Environment = "production"
+  Owner       = "platform"
+}

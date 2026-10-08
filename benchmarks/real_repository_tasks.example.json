@@ -1,0 +1,14 @@
+[
+  {
+    "title": "修复输入校验边界",
+    "goal": "定位失败测试对应的输入校验缺陷，修复实现代码，不修改测试文件，并让全量测试通过。",
+    "test_command": "pytest -q",
+    "test_timeout_seconds": 180
+  },
+  {
+    "title": "修复错误处理分支",
+    "goal": "根据失败测试和源码上下文修复错误处理逻辑，保持现有公开接口兼容。",
+    "test_command": "pytest -q",
+    "test_timeout_seconds": 180
+  }
+]

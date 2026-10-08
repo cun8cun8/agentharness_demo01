@@ -1,0 +1,20 @@
+services:
+  prometheus:
+    volumes:
+      - ./prometheus.production.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
+    secrets:
+      - metrics_token
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    secrets:
+      - alert_webhook_url
+    restart: unless-stopped
+secrets:
+  metrics_token:
+    file: ${RESEARCHFORGE_METRICS_TOKEN_FILE:?Set metrics token file}
+  alert_webhook_url:
+    file: ${RESEARCHFORGE_ALERT_WEBHOOK_FILE:?Set alert webhook URL file}

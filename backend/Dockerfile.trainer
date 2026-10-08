@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+RUN pip install --no-cache-dir 'torch>=2.6,<3' 'trl==0.23.1' 'transformers>=4.56.1,<5' 'datasets>=3,<5' 'accelerate>=1.4,<2'
+COPY backend/trainer/train.py /app/train.py
+ENV HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 HF_HOME=/tmp/huggingface
+ENTRYPOINT ["python", "/app/train.py"]

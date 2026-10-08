@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: researchforge-config
+  namespace: researchforge
+data:
+  RESEARCHFORGE_TRAINING_KUBERNETES_NODE_SELECTOR: '{"researchforge.io/workload":"gpu-training"}'
+  RESEARCHFORGE_TRAINING_KUBERNETES_TOLERATIONS: '[{"key":"nvidia.com/gpu","operator":"Equal","value":"true","effect":"NoSchedule"}]'

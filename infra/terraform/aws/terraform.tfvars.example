@@ -1,0 +1,48 @@
+region               = "ap-southeast-1"
+name                 = "researchforge-prod"
+artifact_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_ARTIFACT_BUCKET"
+# database_backup_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_DATABASE_BACKUP_BUCKET"
+
+# Restrict this to the CI runner and operator egress CIDRs. Set false when the
+# runner is inside the VPC and private endpoint access is configured.
+cluster_endpoint_public_access = true
+cluster_public_access_cidrs    = ["203.0.113.10/32"]
+
+node_instance_types = ["m6i.large"]
+node_min_size       = 3
+node_desired_size   = 3
+node_max_size       = 12
+
+# GPU nodes are isolated with the nvidia.com/gpu=true:NoSchedule taint. When
+# enabled, set the Helm/Kustomize training node selector and toleration to the
+# values documented in infra/kubernetes/README.md.
+gpu_enabled           = false
+gpu_node_instance_types = ["g5.xlarge"]
+gpu_node_min_size     = 0
+gpu_node_desired_size = 0
+gpu_node_max_size     = 4
+
+# Cross-region database backup replication is opt-in. The DR cluster and its
+# External Secrets configuration are deployed separately from this module.
+enable_cross_region_backup_replication = false
+# dr_region             = "ap-northeast-1"
+# dr_backup_bucket_name = "REPLACE_WITH_DR_DATABASE_BACKUP_BUCKET"
+# dr_artifact_bucket_name = "REPLACE_WITH_DR_ARTIFACT_BUCKET"
+
+# DNS failover is opt-in and creates a CNAME only. The primary and standby
+# endpoints must already expose an unauthenticated HTTPS /health endpoint.
+enable_dns_failover = false
+# route53_zone_id       = "Z0123456789EXAMPLE"
+# dns_record_name       = "app.example.com"
+# primary_endpoint_fqdn = "primary-ingress.example.com"
+# dr_endpoint_fqdn      = "dr-ingress.example.com"
+
+# Enable only after placing the sensitive token in an encrypted remote state
+# backend. Terraform state retains this value.
+create_managed_redis = false
+# redis_auth_token = "set-through-TF_VAR_redis_auth_token"
+
+tags = {
+  Environment = "production"
+  Owner       = "platform"
+}

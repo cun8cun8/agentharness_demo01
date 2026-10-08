@@ -1,0 +1,26 @@
+{
+  "name": "researchforge-frontend",
+  "version": "0.2.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3011",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3010",
+    "check": "tsc --noEmit",
+    "legacy": "python -m http.server 3010 --bind 127.0.0.1"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "next": "16.3.8",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.0"
+  }
+}

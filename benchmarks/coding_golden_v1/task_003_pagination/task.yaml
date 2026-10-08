@@ -1,0 +1,24 @@
+id: coding_fix_003
+title: Repair pagination off-by-one
+type: coding_fix
+repo_path: ./repo
+test_command: pytest
+timeout_seconds: 120
+max_steps: 20
+difficulty: level_2
+goal: >
+  Fix pagination boundary behavior without changing tests.
+success_criteria:
+  - all_tests_pass
+  - no_policy_violation
+  - patch_applies_cleanly
+tags:
+  - python
+  - pytest
+  - boundary
+execution_config:
+  task_kind: pagination
+  source_path: src/pagination.py
+  usage_estimate:
+    step_tokens: 500
+    tool_tokens: 740

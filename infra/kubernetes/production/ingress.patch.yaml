@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: researchforge
+  namespace: researchforge
+  annotations:
+    cert-manager.io/cluster-issuer: REPLACE_WITH_CLUSTER_ISSUER
+spec:
+  rules:
+    - host: researchforge.example.invalid
+      http:
+        paths:
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: researchforge-api
+                port:
+                  name: http
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: researchforge-api
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: researchforge-frontend
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - researchforge.example.invalid
+      secretName: researchforge-tls

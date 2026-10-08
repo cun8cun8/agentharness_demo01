@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: researchforge-efs-rwx
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: REPLACE_WITH_TERRAFORM_workspace_efs_id
+  basePath: /researchforge
+  directoryPerms: "700"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

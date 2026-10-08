@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: ResearchForge Metrics
+    uid: researchforge-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+  - name: ResearchForge Traces
+    uid: researchforge-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
