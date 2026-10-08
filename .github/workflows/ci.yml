@@ -117,7 +117,7 @@ jobs:
           exit "$exit_code"
       - name: Check frontend scripts
         run: node --check frontend/app.js && node --check frontend/operations.js
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
