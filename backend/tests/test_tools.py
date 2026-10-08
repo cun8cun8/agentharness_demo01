@@ -800,6 +800,23 @@ def test_docker_runner_builds_read_only_network_isolated_command(tmp_path, monke
     assert command[-4:] == ["python", "-m", "pytest", "-q"]
 
 
+def test_local_sandbox_disables_python_bytecode(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCHFORGE_ENV", "local")
+    monkeypatch.setenv("RESEARCHFORGE_SANDBOX_BACKEND", "local")
+    get_settings.cache_clear()
+    try:
+        result = SandboxRunner().run(
+            [sys.executable, "-c", "import os; print(os.environ['PYTHONDONTWRITEBYTECODE'])"],
+            cwd=tmp_path,
+            workspace_root=tmp_path,
+            timeout_seconds=5,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == "1"
+    finally:
+        get_settings.cache_clear()
+
+
 def test_docker_runner_uses_configured_sandbox_network(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("RESEARCHFORGE_SANDBOX_BACKEND", "docker")
     monkeypatch.setenv("RESEARCHFORGE_SANDBOX_NETWORK_ENABLED", "1")

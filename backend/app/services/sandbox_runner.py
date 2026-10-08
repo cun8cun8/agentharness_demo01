@@ -639,6 +639,9 @@ class SandboxRunner:
         env: dict[str, str] | None = None,
     ) -> SandboxCommandResult:
         backend = self.backend
+        # A baseline test followed immediately by an equal-size Python patch can
+        # otherwise reuse a timestamp-valid __pycache__ entry in the same sandbox.
+        env = {"PYTHONDONTWRITEBYTECODE": "1", **(env or {})}
         root = Path(workspace_root or cwd or ".").resolve()
         dependency_path = root / ".researchforge" / "python"
         if dependency_path.is_dir() and dependency_path.resolve().is_relative_to(root):
