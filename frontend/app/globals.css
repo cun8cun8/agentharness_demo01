@@ -163,21 +163,30 @@ pre {
   gap: 26px;
   position: sticky;
   top: 0;
-  /* 深色底上使用浅色半透明滚动条，避免默认灰白条突兀 */
+  /* 滚动条默认隐藏，悬停侧栏时才显现，避免深色底上出现灰白条 */
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+  scrollbar-color: transparent transparent;
   height: 100vh;
 }
 
+.sidebar:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
 .sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.24);
+  background: transparent;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
+.sidebar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: content-box;
+}
+
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.46);
   background-clip: content-box;
 }
 
