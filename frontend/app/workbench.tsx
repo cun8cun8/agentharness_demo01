@@ -3746,12 +3746,8 @@ export default function Workbench({ section }: { section: string }) {
                               onShare={(entry) => {
                                 const runId = value(entry, "id");
                                 if (!runId) return;
-                                inspectedDeepLink.current = runId;
-                                setDeepLinkedRunId(runId);
-                                void inspect(entry);
                                 const url = new URL(window.location.href);
                                 url.searchParams.set("run", runId);
-                                window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
                                 if (!navigator.clipboard) {
                                   setNotice("链接已生成，但浏览器不允许自动复制。");
                                   return;
@@ -6328,5 +6324,4 @@ function CanaryPanel({
     </section>
   );
 }
-
 
