@@ -65,6 +65,8 @@ test("run records show project and branch context", async ({ page }) => {
   await expect(runRows.first().locator(".run-project > span")).toBeVisible();
   await expect(runRows.first().locator(".run-branch")).toContainText("researchforge/ui-acceptance");
   await runRows.first().getByRole("button", { name: "复制运行链接" }).click({ force: true });
+  await expect(page).not.toHaveURL(/run=run_/);
+  await runRows.first().getByRole("button", { name: "查看详情" }).click({ force: true });
   await expect(page).toHaveURL(/run=run_/);
   await page.reload();
   await expect(page.locator(".detail-drawer")).toBeVisible();
