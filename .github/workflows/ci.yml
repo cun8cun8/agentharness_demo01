@@ -41,6 +41,39 @@ jobs:
           retention-days: 14
       - name: Install dependencies
         run: pip install -r backend/requirements.txt pytest
+      - name: Wait for integration services
+        env:
+          RESEARCHFORGE_TEST_POSTGRES_HOST: 127.0.0.1
+          RESEARCHFORGE_TEST_POSTGRES_PORT: 15473
+          RESEARCHFORGE_TEST_REDIS_HOST: 127.0.0.1
+          RESEARCHFORGE_TEST_REDIS_PORT: 16373
+        run: |
+          python - <<'PY'
+          import os
+          import socket
+          import time
+
+          endpoints = [
+              (os.environ["RESEARCHFORGE_TEST_POSTGRES_HOST"], int(os.environ["RESEARCHFORGE_TEST_POSTGRES_PORT"])),
+              (os.environ["RESEARCHFORGE_TEST_REDIS_HOST"], int(os.environ["RESEARCHFORGE_TEST_REDIS_PORT"])),
+          ]
+          deadline = time.monotonic() + 90
+          pending = list(endpoints)
+          while pending and time.monotonic() < deadline:
+              remaining = []
+              for host, port in pending:
+                  try:
+                      with socket.create_connection((host, port), timeout=2):
+                          pass
+                  except OSError:
+                      remaining.append((host, port))
+              pending = remaining
+              if pending:
+                  time.sleep(2)
+          if pending:
+              raise SystemExit("integration services did not accept TCP connections: " + repr(pending))
+          print("integration services accept TCP connections")
+          PY
       - name: Run test suite
         working-directory: backend
         env:
