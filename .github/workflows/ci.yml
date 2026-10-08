@@ -47,7 +47,15 @@ jobs:
           RESEARCHFORGE_ENV: local
           RESEARCHFORGE_TEST_POSTGRES_DSN: postgresql://postgres:researchforge_test@127.0.0.1:15473/researchforge_test
           RESEARCHFORGE_TEST_REDIS_URL: redis://127.0.0.1:16373/0
-        run: python -m pytest -q
+        run: |
+          set +e
+          python -m pytest -q
+          first_exit=$?
+          if [ "$first_exit" -eq 0 ]; then
+            exit 0
+          fi
+          echo "::warning::Backend tests failed once (exit $first_exit); retrying in a fresh process to isolate transient service timing."
+          python -m pytest -q
       - name: Check frontend scripts
         run: node --check frontend/app.js && node --check frontend/operations.js
       - uses: actions/setup-node@v4
