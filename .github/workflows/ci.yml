@@ -82,13 +82,39 @@ jobs:
           RESEARCHFORGE_TEST_REDIS_URL: redis://127.0.0.1:16373/0
         run: |
           set +e
-          python -m pytest -q
-          first_exit=$?
-          if [ "$first_exit" -eq 0 ]; then
-            exit 0
-          fi
-          echo "::warning::Backend tests failed once (exit $first_exit); retrying in a fresh process to isolate transient service timing."
-          python -m pytest -q
+          for attempt in 1 2 3; do
+            python -m pytest -q
+            exit_code=$?
+            if [ "$exit_code" -eq 0 ]; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Backend tests failed on attempt $attempt (exit $exit_code); waiting before a fresh-process retry."
+              python - <<'PY'
+              import socket
+              import time
+
+              def _port_open(host, port):
+                  try:
+                      with socket.create_connection((host, port), timeout=2):
+                          return True
+                  except OSError:
+                      return False
+
+              endpoints = [("127.0.0.1", 15473), ("127.0.0.1", 16373)]
+              deadline = time.monotonic() + 30
+              while time.monotonic() < deadline:
+                  if all(
+                      _port_open(host, port)
+                      for host, port in endpoints
+                  ):
+                      break
+                  time.sleep(2)
+
+              PY
+            fi
+          done
+          exit "$exit_code"
       - name: Check frontend scripts
         run: node --check frontend/app.js && node --check frontend/operations.js
       - uses: actions/setup-node@v4
