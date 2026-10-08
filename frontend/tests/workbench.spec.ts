@@ -66,7 +66,7 @@ test("run records show project and branch context", async ({ page }) => {
   await expect(runRows.first().locator(".run-branch")).toContainText("researchforge/ui-acceptance");
   await runRows.first().getByRole("button", { name: "复制运行链接" }).click({ force: true });
   await expect(page).not.toHaveURL(/run=run_/);
-  await runRows.first().getByRole("button", { name: "查看详情" }).click({ force: true });
+  await runRows.first().getByRole("button", { name: task.title, exact: true }).click();
   await expect(page).toHaveURL(/run=run_/);
   await page.reload();
   await expect(page.locator(".detail-drawer")).toBeVisible();
@@ -75,7 +75,7 @@ test("run records show project and branch context", async ({ page }) => {
   await runRows.first().getByLabel("选择操作", { exact: true }).check({ force: true });
   await expect(page.getByText("已选择 1 条运行记录", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "清除选择", exact: true }).last().click({ force: true });
-  await runRows.first().getByRole("button", { name: "查看详情" }).click({ force: true });
+  await runRows.first().getByRole("button", { name: task.title, exact: true }).click();
   await expect(page.locator(".detail-drawer")).toBeVisible();
   await expect(page.locator(".detail-drawer")).not.toContainText("[object Object]");
 });
