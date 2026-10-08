@@ -943,7 +943,7 @@ function RunListRow({
   const sourceRevision = value(metrics, "source_revision");
   return (
     <tr className={selected ? "selected" : ""}>
-      <td>
+      <td data-label="任务 / 项目">
         <button className="row-title" onClick={() => onInspect(row)}>
           {value(row, "task_title") || "未命名代码任务"}
         </button>
@@ -980,13 +980,13 @@ function RunListRow({
         </label>
         <small>{runId}</small>
       </td>
-      <td>
+      <td data-label="结果">
         <span className={`status status-${value(row, "status")}`}>
           {display(row.status)}
         </span>
         <small className="run-outcome">{runOutcome(row)}</small>
       </td>
-      <td className="run-time">
+      <td className="run-time" data-label="完成时间">
         <time
           dateTime={
             value(row, "finished_at") ||
@@ -998,7 +998,7 @@ function RunListRow({
         </time>
         <small>{relativeRunTimestamp(row)}</small>
       </td>
-      <td>
+      <td data-label="耗时 / 成本">
         <strong className="run-metric">
           {formatRunDuration(row.duration_ms)}
         </strong>
@@ -1007,11 +1007,11 @@ function RunListRow({
           Token
         </small>
       </td>
-      <td>
+      <td data-label="模型 / 策略">
         <span>{value(row, "model_name") || "未路由模型"}</span>
         <small>{value(row, "agent_strategy_id")}</small>
       </td>
-      <td className="right">
+      <td className="right" data-label="操作">
         <div className="row-actions">
           {active && (
             <IconButton
@@ -3767,11 +3767,11 @@ export default function Workbench({ section }: { section: string }) {
                               onToggleBulk={toggleBulkRun}
                             />
                           ) : section === "audit" ? (
-                            <tr
-                              key={row.id}
-                              className={selected?.id === row.id ? "selected" : ""}
-                            >
-                              <td>
+                          <tr
+                            key={row.id}
+                            className={selected?.id === row.id ? "selected" : ""}
+                          >
+                              <td data-label="操作 / 资源">
                                 <button className="row-title" onClick={() => void inspect(row)}>
                                   {value(row, "action") || "未命名操作"}
                                 </button>
@@ -3779,8 +3779,8 @@ export default function Workbench({ section }: { section: string }) {
                                   {value(row, "resource_type") || "未知资源"} · {value(row, "resource_id") || "未关联记录"}
                                 </small>
                               </td>
-                              <td>{value(row, "actor_id") || "系统"}</td>
-                              <td>
+                              <td data-label="执行者">{value(row, "actor_id") || "系统"}</td>
+                              <td data-label="决策 / 时间">
                                 <span className={`status status-${value(row, "decision") === "failed" || value(row, "decision") === "denied" ? "failed" : "completed"}`}>
                                   {display(value(row, "decision")) || "已记录"}
                                 </span>
@@ -3790,7 +3790,7 @@ export default function Workbench({ section }: { section: string }) {
                                     : "未记录"}
                                 </small>
                               </td>
-                              <td className="right">
+                              <td className="right" data-label="操作">
                                 <div className="row-actions">
                                   <IconButton label="查看详情" icon={ChevronRight} onClick={() => void inspect(row)} />
                                 </div>
@@ -3803,7 +3803,7 @@ export default function Workbench({ section }: { section: string }) {
                                 selected?.id === row.id ? "selected" : ""
                               }
                             >
-                              <td>
+                              <td data-label="名称">
                                 <button
                                   className="row-title"
                                   onClick={() => void inspect(row)}
@@ -3818,14 +3818,14 @@ export default function Workbench({ section }: { section: string }) {
                                 </button>
                                 <small>{row.id}</small>
                               </td>
-                              <td>
+                              <td data-label="状态">
                                 <span
                                   className={`status status-${value(row, "status")}`}
                                 >
                                   {display(row.status)}
                                 </span>
                               </td>
-                              <td>
+                              <td data-label={section === "training" ? "方法 / 样本数" : section === "system" ? "角色 / 工作区" : "创建时间"}>
                                 {section === "repositories" ? (
                                   <>
                                     <div className="repository-list-meta">
@@ -3860,7 +3860,7 @@ export default function Workbench({ section }: { section: string }) {
                                   "未记录"
                                 )}
                               </td>
-                              <td className="right">
+                              <td className="right" data-label="操作">
                                 <div className="row-actions">
                                   {section === "tasks" && (
                                     <IconButton
@@ -4002,7 +4002,10 @@ export default function Workbench({ section }: { section: string }) {
                 </table>
               </div>
               <div className="pagination">
-                <span>第 {Math.floor(offset / 25) + 1} 页</span>
+                <span>
+                  第 {Math.floor(offset / 25) + 1} /{" "}
+                  {Math.max(1, Math.ceil(total / 25))} 页 · 共 {total} 条
+                </span>
                 <IconButton
                   label="上一页"
                   icon={ChevronLeft}

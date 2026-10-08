@@ -180,6 +180,17 @@ def test_postgres_two_writers_conflict_recovery_and_cancel(monkeypatch):
         second.refresh()
         assert second.is_cancel_requested(run.id)
         assert second.get_task(right.id) is not None
+        audit_marker = "postgres-audit-cross-worker"
+        first.add_audit_log(
+            action="test.cross_worker",
+            resource_type="test",
+            resource_id=audit_marker,
+            decision="allow",
+        )
+        assert any(
+            item.resource_id == audit_marker
+            for item in second.list_audit_logs(action="test.cross_worker")
+        )
     finally:
         first._engine.dispose()
         second._engine.dispose()

@@ -20,6 +20,7 @@ from app.domain.schemas import (
     AgentRunResponse,
     AgentStep,
     Artifact,
+    AuditLogResponse,
     CreateTraceDatasetItemRequest,
     CreateUserRequest,
     CreateRepositoryConnectionRequest,
@@ -275,6 +276,29 @@ class PostgresRecordStore(InMemoryStore):
         items = self._read_collection("users", UserResponse)
         if workspace_id:
             items = [item for item in items if item.workspace_id == workspace_id]
+        return sorted(items, key=lambda item: (item.created_at, item.id), reverse=True)
+
+    def list_audit_logs(
+        self,
+        actor_id: str | None = None,
+        action: str | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        decision: str | None = None,
+    ) -> list[AuditLogResponse]:
+        """Read audit records from PostgreSQL so multiple API workers stay consistent."""
+        items = self._read_collection("audit_logs", AuditLogResponse)
+        if actor_id:
+            items = [item for item in items if item.actor_id == actor_id]
+        if action:
+            items = [item for item in items if item.action == action]
+        if resource_type:
+            items = [item for item in items if item.resource_type == resource_type]
+        if resource_id:
+            items = [item for item in items if item.resource_id == resource_id]
+        if decision:
+            items = [item for item in items if item.decision == decision]
+        self.audit_logs = {item.id: item for item in items}
         return sorted(items, key=lambda item: (item.created_at, item.id), reverse=True)
 
     def query_users_page(
