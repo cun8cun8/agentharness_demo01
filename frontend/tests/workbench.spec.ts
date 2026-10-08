@@ -19,12 +19,19 @@ test("Chinese workbench navigation, task creation, and layouts", async ({ page }
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.locator(".detail")).toBeVisible();
   await page.screenshot({ path: `test-results/${testInfo.project.name}-tasks.png`, fullPage: true });
-  for (const label of ["仓库接入", "运行记录", "审批中心", "智能体策略", "模型网关", "评测发布", "研究工作台", "项目记忆", "数据审核", "训练任务", "模型版本", "扩展工具", "平台管理"]) {
+  for (const label of ["仓库接入", "运行记录", "审批中心", "智能体策略", "模型网关", "评测发布", "研究工作台", "项目记忆", "数据审核", "训练任务", "模型版本", "操作审计", "扩展工具", "平台管理"]) {
     await page.getByRole("link", { name: label, exact: true }).click();
     await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
     await expect(page.getByText("正在加载", { exact: true })).toHaveCount(0);
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   }
+  await page.goto("/audit");
+  await expect(page.getByRole("heading", { name: "操作审计", exact: true })).toBeVisible();
+  await expect(page.getByLabel("操作筛选", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("资源类型筛选", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("决策筛选", { exact: true })).toBeVisible();
+  await page.getByLabel("操作筛选", { exact: true }).fill("task.create");
+  await expect(page).toHaveURL(/action=task.create/);
   await page.screenshot({ path: `test-results/${testInfo.project.name}-system.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);

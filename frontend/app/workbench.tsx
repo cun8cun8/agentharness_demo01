@@ -83,7 +83,7 @@ type PendingAction = {
   body: unknown;
   onComplete?: (result?: Row) => Promise<void>;
 };
-const serverFilteredSections = ["tasks", "runs", "repositories", "datasets", "system"];
+const serverFilteredSections = ["tasks", "runs", "repositories", "datasets", "system", "audit"];
 const optimisticCreatePaths = new Set([
   "/tasks",
   "/integrations/repositories",
@@ -134,6 +134,7 @@ const navGroups: [string, [string, string, LucideIcon][]][] = [
   [
     "平台",
     [
+      ["audit", "操作审计", Activity],
       ["extensions", "扩展工具", Settings],
       ["system", "平台管理", Settings],
     ],
@@ -156,6 +157,7 @@ const paths: Record<string, string> = {
   registry: "/model-registry/versions",
   extensions: "/extensions",
   system: "/users",
+  audit: "/audit-logs",
 };
 const labels: Record<string, string> = {
   queued: "排队中",
@@ -288,6 +290,7 @@ Object.assign(labels, {
   enabled: "已启用",
   error: "错误",
   denied: "已拒绝",
+  allow: "已允许",
   matched: "已匹配",
   under_estimated: "实际高于估算",
   over_estimated: "实际低于估算",
@@ -414,6 +417,7 @@ const sectionHints: Record<string, string> = {
   registry: "模型版本与灰度发布",
   extensions: "MCP、Skills 与 Hooks",
   system: "成员、依赖与上线检查",
+  audit: "追踪平台操作、资源变更和策略决策",
 };
 const csrf = () =>
   document.cookie
@@ -735,6 +739,12 @@ function RecordDetails({ row }: { row: Row }) {
     duration_ms: "运行耗时（毫秒）",
     total_tokens: "Token 用量",
     total_cost: "估算成本",
+    actor_id: "执行者",
+    action: "操作",
+    resource_type: "资源类型",
+    resource_id: "资源标识",
+    decision: "决策结果",
+    detail_json: "操作详情",
   };
   return (
     <>
@@ -1654,6 +1664,9 @@ export default function Workbench({ section }: { section: string }) {
   const [runFromTime, setRunFromTime] = useState(() => dateTimeInputValue(browserQueryValue("from_time")));
   const [runToTime, setRunToTime] = useState(() => dateTimeInputValue(browserQueryValue("to_time")));
   const [runSort, setRunSort] = useState(() => browserQueryValue("sort") || "completed_desc");
+  const [auditAction, setAuditAction] = useState(() => browserQueryValue("action"));
+  const [auditResourceType, setAuditResourceType] = useState(() => browserQueryValue("resource"));
+  const [auditDecision, setAuditDecision] = useState(() => browserQueryValue("decision"));
   const [deepLinkedRunId, setDeepLinkedRunId] = useState(() => browserQueryValue("run"));
   const [deepLinkedJobId, setDeepLinkedJobId] = useState(() => browserQueryValue("job"));
   const [deepLinkedJob, setDeepLinkedJob] = useState<Row | null>(null);
@@ -1716,8 +1729,11 @@ export default function Workbench({ section }: { section: string }) {
       const scope = activeWorkspaceId
         ? `&workspace_id=${encodeURIComponent(activeWorkspaceId)}`
         : "";
-      const search = serverFilteredSections.includes(section)
+      const search = serverFilteredSections.includes(section) && section !== "audit"
         ? `&query=${encodeURIComponent(deferredQuery)}&status=${encodeURIComponent(status)}`
+        : "";
+      const auditFilters = section === "audit"
+        ? `&query=${encodeURIComponent(deferredQuery)}${auditAction ? `&action=${encodeURIComponent(auditAction)}` : ""}${auditResourceType ? `&resource_type=${encodeURIComponent(auditResourceType)}` : ""}${auditDecision ? `&decision=${encodeURIComponent(auditDecision)}` : ""}`
         : "";
       const explicitFromTime = dateTimeQueryValue(runFromTime);
       const explicitToTime = dateTimeQueryValue(runToTime);
@@ -1730,7 +1746,7 @@ export default function Workbench({ section }: { section: string }) {
         section === "datasets" ? `/datasets/${datasetView}` : paths[section];
       const separator = endpoint.includes("?") ? "&" : "?";
       const page = await api<Page>(
-        `${endpoint}${separator}limit=25&offset=${offset}${scope}${search}${runFilters}`,
+        `${endpoint}${separator}limit=25&offset=${offset}${scope}${search}${auditFilters}${runFilters}`,
         "GET",
         undefined,
         {},
@@ -1755,7 +1771,7 @@ export default function Workbench({ section }: { section: string }) {
       if (loadAbort.current === abortController) loadAbort.current = null;
       if (sequence === loadSequence.current) setBusy(false);
     }
-  }, [section, offset, datasetView, activeWorkspaceId, deferredQuery, status, runProjectFilter, runBranchFilter, runModelFilter, runStrategyFilter, runRange, runFromTime, runToTime, runSort]);
+  }, [section, offset, datasetView, activeWorkspaceId, deferredQuery, status, auditAction, auditResourceType, auditDecision, runProjectFilter, runBranchFilter, runModelFilter, runStrategyFilter, runRange, runFromTime, runToTime, runSort]);
   const openLogin = useCallback(() => redirectToLogin(), []);
   useEffect(() => {
     const clear = () => {
@@ -1851,6 +1867,9 @@ export default function Workbench({ section }: { section: string }) {
       runFromTime,
       runToTime,
       runSort,
+      auditAction,
+      auditResourceType,
+      auditDecision,
     ].join("|");
     if (loadedRequestKey.current === requestKey) return;
     loadedRequestKey.current = requestKey;
@@ -1874,6 +1893,9 @@ export default function Workbench({ section }: { section: string }) {
     runFromTime,
     runToTime,
     runSort,
+    auditAction,
+    auditResourceType,
+    auditDecision,
   ]);
   useEffect(() => {
     if (loadedSection !== section) return;
@@ -2037,6 +2059,15 @@ export default function Workbench({ section }: { section: string }) {
     setSearchParameter(url.searchParams, "run", deepLinkedRunId);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [section, query, status, runProjectFilter, runBranchFilter, runModelFilter, runStrategyFilter, runRange, runFromTime, runToTime, runSort, deepLinkedRunId]);
+  useEffect(() => {
+    if (section !== "audit" || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    setSearchParameter(url.searchParams, "query", query);
+    setSearchParameter(url.searchParams, "action", auditAction);
+    setSearchParameter(url.searchParams, "resource", auditResourceType);
+    setSearchParameter(url.searchParams, "decision", auditDecision);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [section, query, auditAction, auditResourceType, auditDecision]);
   useEffect(() => {
     if (section !== "runs" || typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -3165,48 +3196,97 @@ export default function Workbench({ section }: { section: string }) {
                     }}
                   />
                 )}
-                <label className="status-filter">
-                  <span>状态</span>
-                  <select
-                    aria-label="状态筛选"
-                    value={status}
-                    onChange={(e) => {
-                      setStatus(e.target.value);
-                      setOffset(0);
-                    }}
-                  >
-                    <option value="">全部状态</option>
-                    {[
-                      ...new Set([
-                        status,
-                        ...items.map((item) => value(item, "status")),
-                        ...(serverFilteredSections.includes(section)
-                          ? [
-                              "queued",
-                              "running",
-                              "paused",
-                              "completed",
-                              "failed",
-                              "cancelled",
-                              "blocked",
-                            ]
-                          : []),
-                      ]),
-                    ]
-                      .filter(Boolean)
-                      .map((item) => (
-                        <option key={item} value={item}>
-                          {display(item)}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                {(query || status) && (
+                {section !== "audit" && (
+                  <label className="status-filter">
+                    <span>状态</span>
+                    <select
+                      aria-label="状态筛选"
+                      value={status}
+                      onChange={(e) => {
+                        setStatus(e.target.value);
+                        setOffset(0);
+                      }}
+                    >
+                      <option value="">全部状态</option>
+                      {[
+                        ...new Set([
+                          status,
+                          ...items.map((item) => value(item, "status")),
+                          ...(serverFilteredSections.includes(section)
+                            ? [
+                                "queued",
+                                "running",
+                                "paused",
+                                "completed",
+                                "failed",
+                                "cancelled",
+                                "blocked",
+                              ]
+                            : []),
+                        ]),
+                      ]
+                        .filter(Boolean)
+                        .map((item) => (
+                          <option key={item} value={item}>
+                            {display(item)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                )}
+                {section === "audit" && (
+                  <>
+                    <label className="status-filter">
+                      <span>操作</span>
+                      <input
+                        aria-label="操作筛选"
+                        placeholder="例如 repository.publish"
+                        value={auditAction}
+                        onChange={(event) => {
+                          setAuditAction(event.target.value);
+                          setOffset(0);
+                        }}
+                      />
+                    </label>
+                    <label className="status-filter">
+                      <span>资源</span>
+                      <input
+                        aria-label="资源类型筛选"
+                        placeholder="例如 repository"
+                        value={auditResourceType}
+                        onChange={(event) => {
+                          setAuditResourceType(event.target.value);
+                          setOffset(0);
+                        }}
+                      />
+                    </label>
+                    <label className="status-filter">
+                      <span>决策</span>
+                      <select
+                        aria-label="决策筛选"
+                        value={auditDecision}
+                        onChange={(event) => {
+                          setAuditDecision(event.target.value);
+                          setOffset(0);
+                        }}
+                      >
+                        <option value="">全部决策</option>
+                        {["allow", "approved", "completed", "queued", "denied", "rejected", "failed", "revoked"].map((item) => (
+                          <option key={item} value={item}>{display(item)}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+                {(query || status || auditAction || auditResourceType || auditDecision) && (
                   <button
                     className="filter-reset"
                     onClick={() => {
                       setQuery("");
                       setStatus("");
+                      setAuditAction("");
+                      setAuditResourceType("");
+                      setAuditDecision("");
                       setOffset(0);
                     }}
                   >
@@ -3558,6 +3638,13 @@ export default function Workbench({ section }: { section: string }) {
                         <th>模型 / 策略</th>
                         <th className="right">操作</th>
                       </tr>
+                    ) : section === "audit" ? (
+                      <tr>
+                        <th>操作 / 资源</th>
+                        <th>执行者</th>
+                        <th>决策 / 时间</th>
+                        <th className="right">操作</th>
+                      </tr>
                     ) : (
                       <tr>
                         <th>
@@ -3631,6 +3718,36 @@ export default function Workbench({ section }: { section: string }) {
                               bulkSelected={bulkRunIds.includes(value(row, "id"))}
                               onToggleBulk={toggleBulkRun}
                             />
+                          ) : section === "audit" ? (
+                            <tr
+                              key={row.id}
+                              className={selected?.id === row.id ? "selected" : ""}
+                            >
+                              <td>
+                                <button className="row-title" onClick={() => void inspect(row)}>
+                                  {value(row, "action") || "未命名操作"}
+                                </button>
+                                <small>
+                                  {value(row, "resource_type") || "未知资源"} · {value(row, "resource_id") || "未关联记录"}
+                                </small>
+                              </td>
+                              <td>{value(row, "actor_id") || "系统"}</td>
+                              <td>
+                                <span className={`status status-${value(row, "decision") === "failed" || value(row, "decision") === "denied" ? "failed" : "completed"}`}>
+                                  {display(value(row, "decision")) || "已记录"}
+                                </span>
+                                <small>
+                                  {value(row, "created_at")
+                                    ? new Date(value(row, "created_at")).toLocaleString("zh-CN", { hour12: false })
+                                    : "未记录"}
+                                </small>
+                              </td>
+                              <td className="right">
+                                <div className="row-actions">
+                                  <IconButton label="查看详情" icon={ChevronRight} onClick={() => void inspect(row)} />
+                                </div>
+                              </td>
+                            </tr>
                           ) : (
                             <tr
                               key={row.id}
