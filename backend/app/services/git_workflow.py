@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import base64
 import os
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx
 from pydantic import BaseModel, Field
@@ -61,13 +62,17 @@ def publish_patch(repository, run, policy, patch: str, body: PublishPatchRequest
             if not repository.url:
                 raise ValueError("REMOTE_URL_REQUIRED")
             git(["remote", "set-url", "origin", repository.url], root)
-            remote_branch = _remote_branch_revision(root, body.branch, env=env)
-            if remote_branch and remote_branch != commit:
-                raise ValueError("PUBLISH_BRANCH_EXISTS_WITH_DIFFERENT_COMMIT")
-            if remote_branch == commit:
-                result["push_reused"] = True
+            if _use_github_api(repository):
+                result["push_reused"] = _push_via_github_api(repository, root, revision, commit, body.branch)
+                result["transport"] = "github_api"
             else:
-                git(["push", "origin", f"HEAD:refs/heads/{body.branch}"], root, env=env)
+                remote_branch = _remote_branch_revision(root, body.branch, env=env)
+                if remote_branch and remote_branch != commit:
+                    raise ValueError("PUBLISH_BRANCH_EXISTS_WITH_DIFFERENT_COMMIT")
+                if remote_branch == commit:
+                    result["push_reused"] = True
+                else:
+                    git(["push", "origin", f"HEAD:refs/heads/{body.branch}"], root, env=env)
             result["pushed"] = True
     if body.create_pull_request:
         try:
@@ -130,10 +135,103 @@ def _assert_remote_revision(repository, source: Path, expected_revision: str, *,
     """Prevent a stale Agent diff from being pushed after the base branch changes."""
     if repository.provider == "local":
         return
+    if _use_github_api(repository):
+        with _github_client(repository) as client:
+            response = client.get(f"git/ref/heads/{quote(repository.default_branch, safe='/')}")
+            response.raise_for_status()
+            if response.json()["object"]["sha"] != expected_revision:
+                raise ValueError("RUN_SOURCE_REVISION_DRIFTED")
+        return
     git(["fetch", "origin", repository.default_branch], source, env=env)
     remote_revision = git(["rev-parse", f"origin/{repository.default_branch}"], source, env=env)
     if remote_revision != expected_revision:
         raise ValueError("RUN_SOURCE_REVISION_DRIFTED")
+
+
+def _use_github_api(repository) -> bool:
+    return repository.provider == "github" and get_settings().github_git_transport == "api"
+
+
+def _github_client(repository) -> httpx.Client:
+    parsed = urlsplit(repository.url or "")
+    parts = parsed.path.strip("/").removesuffix(".git").split("/")
+    if parsed.scheme != "https" or parsed.hostname != "github.com" or len(parts) != 2 or not all(parts):
+        raise ValueError("GITHUB_REPOSITORY_URL_INVALID")
+    try:
+        token = repository_token(repository)
+    except GitHubAppError as exc:
+        raise ValueError(str(exc)) from exc
+    if not token:
+        raise ValueError("GITHUB_CREDENTIAL_MISSING")
+    return httpx.Client(base_url=get_settings().github_api_base_url.rstrip("/") + "/repos/" + "/".join(parts) + "/",
+                        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+                        timeout=60, follow_redirects=False)
+
+
+def _git_bytes(args: list[str], root: Path) -> bytes:
+    result = subprocess.run(["git", "-c", "core.hooksPath=", *args], cwd=root, capture_output=True, timeout=120)
+    if result.returncode:
+        raise ValueError("GIT_OBJECT_READ_FAILED")
+    return result.stdout
+
+
+def _push_via_github_api(repository, root: Path, revision: str, commit: str, branch: str) -> bool:
+    """Upload exact Git objects; create only the protected branch after hash checks."""
+    def post(client, path, payload):
+        response = client.post(path, json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    with _github_client(repository) as client:
+        ref_path = f"git/ref/heads/{quote(branch, safe='/')}"
+        existing = client.get(ref_path)
+        if existing.status_code != 404:
+            existing.raise_for_status()
+            if existing.json()["object"]["sha"] != commit:
+                raise ValueError("PUBLISH_BRANCH_EXISTS_WITH_DIFFERENT_COMMIT")
+            return True
+        base = client.get(f"git/commits/{revision}")
+        base.raise_for_status()
+        entries = []
+        for path_bytes in _git_bytes(["diff", "--name-only", "-z", revision, commit], root).split(b"\0"):
+            if not path_bytes:
+                continue
+            path = path_bytes.decode("utf-8")
+            raw = _git_bytes(["ls-tree", "-z", commit, "--", path], root)
+            if not raw:
+                entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+                continue
+            metadata, _ = raw.split(b"\t", 1)
+            mode, kind, sha = metadata.decode("ascii").split()
+            if kind != "blob" or mode not in {"100644", "100755"}:
+                raise ValueError("PATCH_LINK_MODE_NOT_ALLOWED")
+            data = _git_bytes(["cat-file", "blob", sha], root)
+            uploaded = post(client, "git/blobs", {"content": base64.b64encode(data).decode("ascii"), "encoding": "base64"})
+            if uploaded["sha"] != sha:
+                raise ValueError("GITHUB_BLOB_HASH_MISMATCH")
+            entries.append({"path": path, "mode": mode, "type": "blob", "sha": sha})
+        tree = post(client, "git/trees", {"base_tree": base.json()["tree"]["sha"], "tree": entries})
+        if tree["sha"] != git(["rev-parse", f"{commit}^{{tree}}"], root):
+            raise ValueError("GITHUB_TREE_HASH_MISMATCH")
+        raw_commit = _git_bytes(["cat-file", "commit", commit], root)
+        _, message = raw_commit.split(b"\n\n", 1)
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = git(
+            ["show", "-s", "--format=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI", commit], root).split("\0")
+        uploaded_commit = post(client, "git/commits", {
+            "tree": tree["sha"], "parents": [revision], "message": message.decode("utf-8"),
+            "author": {"name": author_name, "email": author_email, "date": author_date},
+            "committer": {"name": committer_name, "email": committer_email, "date": committer_date},
+        })
+        if uploaded_commit["sha"] != commit:
+            raise ValueError("GITHUB_COMMIT_HASH_MISMATCH")
+        current_base = client.get(f"git/ref/heads/{quote(repository.default_branch, safe='/')}")
+        current_base.raise_for_status()
+        if current_base.json()["object"]["sha"] != revision:
+            raise ValueError("RUN_SOURCE_REVISION_DRIFTED")
+        created = post(client, "git/refs", {"ref": f"refs/heads/{branch}", "sha": commit})
+        if created["object"]["sha"] != commit:
+            raise ValueError("GITHUB_REF_HASH_MISMATCH")
+        return False
 
 
 def _remote_branch_revision(source: Path, branch: str, *, env=None) -> str | None:

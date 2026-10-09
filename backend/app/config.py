@@ -2,6 +2,7 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -218,6 +219,7 @@ class Settings(BaseModel):
     github_oauth_state_secret_env: str = "RESEARCHFORGE_GITHUB_OAUTH_STATE_SECRET"
     github_oauth_state_ttl_seconds: int = 600
     github_api_base_url: str = "https://api.github.com"
+    github_git_transport: Literal["git", "api"] = "git"
     github_app_id: str | None = None
     github_app_private_key_env: str = "RESEARCHFORGE_GITHUB_APP_PRIVATE_KEY"
     github_app_token_refresh_seconds: int = 300
@@ -428,6 +430,7 @@ def get_settings() -> Settings:
             "https://api.github.com",
         ),
         github_app_id=os.getenv("RESEARCHFORGE_GITHUB_APP_ID") or None,
+        github_git_transport=os.getenv("RESEARCHFORGE_GITHUB_GIT_TRANSPORT", "git"),
         github_app_private_key_env=os.getenv(
             "RESEARCHFORGE_GITHUB_APP_PRIVATE_KEY_ENV",
             "RESEARCHFORGE_GITHUB_APP_PRIVATE_KEY",
