@@ -8,6 +8,8 @@ ENV RESEARCHFORGE_BACKEND_URL=$RESEARCHFORGE_BACKEND_URL
 RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
+RUN rm -rf /usr/local/lib/node_modules/npm /opt/yarn-* \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 ENV NODE_ENV=production PORT=3010 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

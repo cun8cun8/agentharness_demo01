@@ -105,6 +105,14 @@ jobs:
           tags: ${{ steps.image.outputs.name }}-trainer:${{ github.sha }}
           provenance: true
           sbom: true
+      - name: Verify offline trainer compatibility
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          REVISION: ${{ github.sha }}
+        run: |
+          docker run --rm --network none --entrypoint python \
+            -v "$GITHUB_WORKSPACE/backend/tests/trainer_smoke.py:/tmp/trainer-smoke.py:ro" \
+            "$IMAGE-trainer:$REVISION" /tmp/trainer-smoke.py
       - name: Scan images for high and critical vulnerabilities
         id: vulnerability_scan
         continue-on-error: true
@@ -131,8 +139,13 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Block high and critical image vulnerabilities
-        if: steps.vulnerability_scan.outputs.failures == '1'
-        run: exit 1
+        if: always()
+        env:
+          SCAN_OUTCOME: ${{ steps.vulnerability_scan.outcome }}
+          SCAN_FAILURES: ${{ steps.vulnerability_scan.outputs.failures }}
+        run: |
+          test "$SCAN_OUTCOME" = "success"
+          test "$SCAN_FAILURES" = "0"
       - name: Upload release manifest
         uses: actions/upload-artifact@v4
         with:

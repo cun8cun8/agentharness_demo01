@@ -28,6 +28,13 @@ def main():
     elif config["method"] == "dpo":
         trainer = DPOTrainer(model=model, processing_class=tokenizer, train_dataset=dataset, args=DPOConfig(**common, max_length=1024))
     elif config["method"] == "grpo":
+        # TRL 1.x removed max_prompt_length; keep the existing left-truncation limit.
+        def truncate_prompt(row):
+            tokens = tokenizer.encode(row["prompt"], add_special_tokens=False)
+            if len(tokens) > 1024:
+                return {"prompt": tokenizer.decode(tokens[-1024:], skip_special_tokens=False)}
+            return {"prompt": row["prompt"]}
+        dataset = dataset.map(truncate_prompt)
         # This fixed reward is intentionally data-only: no user supplied Python, shell, or network access.
         def patch_reward(completions, reference_patch, **_kwargs):
             scores = []
@@ -42,7 +49,8 @@ def main():
             return scores
         trainer = GRPOTrainer(model=model, processing_class=tokenizer, train_dataset=dataset,
                               reward_funcs=patch_reward,
-                              args=GRPOConfig(**common, max_prompt_length=1024, max_completion_length=1024, num_generations=2))
+                              args=GRPOConfig(**common, max_completion_length=1024, num_generations=2,
+                                              generation_batch_size=2 * int(os.getenv("WORLD_SIZE", "1"))))
     else:
         raise ValueError("UNSUPPORTED_TRAINING_METHOD")
     result = trainer.train()

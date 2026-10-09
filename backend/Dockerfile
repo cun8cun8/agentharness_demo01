@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:29.9.0-cli /usr/local/bin/docker /usr/local/bin/docker
 
 ARG KUBECTL_VERSION=v1.31.4
 
