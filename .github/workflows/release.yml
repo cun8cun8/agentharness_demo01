@@ -105,14 +105,34 @@ jobs:
           tags: ${{ steps.image.outputs.name }}-trainer:${{ github.sha }}
           provenance: true
           sbom: true
-      - name: Block high and critical image vulnerabilities
+      - name: Scan images for high and critical vulnerabilities
+        id: vulnerability_scan
+        continue-on-error: true
         env:
           IMAGE: ${{ steps.image.outputs.name }}
           REVISION: ${{ github.sha }}
         run: |
+          mkdir -p .run/trivy
+          failures=0
           for component in api frontend sandbox trainer; do
-            docker run --rm -v "$HOME/.docker:/root/.docker:ro" aquasec/trivy:0.58.1 image --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL "$IMAGE-$component:$REVISION"
+            set +e
+            docker run --rm -v "$HOME/.docker:/root/.docker:ro" -v "$GITHUB_WORKSPACE/.run/trivy:/reports" aquasec/trivy:0.58.1 image --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL --format json --output "/reports/$component.json" "$IMAGE-$component:$REVISION"
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then failures=1; fi
           done
+          echo "failures=$failures" >> "$GITHUB_OUTPUT"
+      - name: Upload image vulnerability reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: researchforge-image-vulnerability-reports-${{ github.sha }}
+          path: .run/trivy
+          if-no-files-found: error
+          retention-days: 90
+      - name: Block high and critical image vulnerabilities
+        if: steps.vulnerability_scan.outputs.failures == '1'
+        run: exit 1
       - name: Upload release manifest
         uses: actions/upload-artifact@v4
         with:
