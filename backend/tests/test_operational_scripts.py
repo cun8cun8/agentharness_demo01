@@ -41,7 +41,9 @@ def test_cluster_preflight_accepts_ready_production_resources():
 
     def runner(command):
         resource = " ".join(command)
-        if " get deployment " in resource:
+        if " version " in resource:
+            body = {"clientVersion": {"gitVersion": "v1.37.1"}, "serverVersion": {"gitVersion": "v1.36.2"}}
+        elif " get deployment " in resource:
             name = "api" if "researchforge-api" in resource else "worker" if "researchforge-worker" in resource else "frontend"
             replicas = 2 if name in {"api", "frontend"} else 1
             body = {

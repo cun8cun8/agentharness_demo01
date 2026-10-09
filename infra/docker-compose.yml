@@ -1,5 +1,6 @@
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:16
     environment:
       POSTGRES_DB: researchforge
@@ -17,6 +18,7 @@ services:
       retries: 12
 
   redis:
+    restart: unless-stopped
     image: redis:7
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -178,6 +180,7 @@ services:
     restart: unless-stopped
 
   minio:
+    restart: unless-stopped
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data --console-address ":9001"
     environment:
@@ -190,6 +193,7 @@ services:
       - minio-data:/data
 
   redpanda:
+    restart: unless-stopped
     image: redpandadata/redpanda:v24.3.7
     command:
       - redpanda
@@ -212,6 +216,7 @@ services:
       - "127.0.0.1:${RESEARCHFORGE_REDPANDA_HOST_PORT:-9092}:9092"
 
   prometheus:
+    restart: unless-stopped
     image: ${RESEARCHFORGE_PROMETHEUS_IMAGE:-prom/prometheus:v3.0.1}
     ports:
       - "127.0.0.1:${RESEARCHFORGE_PROMETHEUS_HOST_PORT:-9090}:9090"
@@ -219,6 +224,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
 
   grafana:
+    restart: unless-stopped
     image: ${RESEARCHFORGE_GRAFANA_IMAGE:-grafana/grafana:11.4.0}
     ports:
       - "127.0.0.1:${RESEARCHFORGE_GRAFANA_PORT:-3001}:3000"

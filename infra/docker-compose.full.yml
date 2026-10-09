@@ -133,6 +133,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
   redpanda:
+    restart: unless-stopped
     image: redpandadata/redpanda:v25.1.1
     command: ["redpanda", "start", "--overprovisioned", "--smp", "1", "--memory", "512M", "--reserve-memory", "0M", "--node-id", "0", "--check=false", "--kafka-addr", "internal://0.0.0.0:9092,external://0.0.0.0:9093", "--advertise-kafka-addr", "internal://redpanda:9092,external://localhost:${RESEARCHFORGE_REDPANDA_EXTERNAL_PORT:-29092}"]
     ports:
@@ -143,6 +144,7 @@ services:
       timeout: 5s
       retries: 20
   neo4j:
+    restart: unless-stopped
     image: neo4j:5.26.0
     environment:
       NEO4J_AUTH: neo4j/${RESEARCHFORGE_NEO4J_PASSWORD:-researchforge_dev}
@@ -151,6 +153,7 @@ services:
       - "127.0.0.1:${RESEARCHFORGE_NEO4J_BOLT_PORT:-7687}:7687"
     volumes: ["neo4j-data:/data"]
   otel-collector:
+    restart: unless-stopped
     image: otel/opentelemetry-collector:0.120.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes: ["./otel-collector.yml:/etc/otelcol/config.yaml:ro"]
@@ -162,6 +165,7 @@ services:
     command: ["mkdir -p /tmp/tempo/blocks /tmp/tempo/wal && chown -R 10001:10001 /tmp/tempo"]
     volumes: ["tempo-data:/tmp/tempo"]
   tempo:
+    restart: unless-stopped
     image: grafana/tempo:2.7.2
     command: ["-config.file=/etc/tempo.yml"]
     volumes: ["./tempo.yml:/etc/tempo.yml:ro", "tempo-data:/tmp/tempo"]
@@ -169,6 +173,7 @@ services:
       tempo-init:
         condition: service_completed_successfully
   grafana:
+    restart: unless-stopped
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -182,6 +187,7 @@ services:
       - alertmanager-data:/alertmanager
     restart: unless-stopped
   prometheus:
+    restart: unless-stopped
     volumes:
       - ./prometheus.full.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro

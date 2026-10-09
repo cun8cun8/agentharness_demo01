@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,22 @@ def _condition_is_true(payload: dict[str, object], condition_type: str) -> bool:
         and str(item.get("status", "")).lower() == "true"
         for item in conditions
     )
+
+
+def _version_skew(runner: Runner, kubectl: str) -> Check:
+    payload, detail = _json(runner, kubectl, ["version"])
+    if payload is None:
+        return Check("kubectl_version_skew", False, detail)
+    versions = []
+    for key in ("clientVersion", "serverVersion"):
+        value = payload.get(key)
+        match = re.fullmatch(r"v?(\d+)\.(\d+)\.\d+(?:[-+].*)?", str(value.get("gitVersion", ""))) if isinstance(value, dict) else None
+        if match is None:
+            return Check("kubectl_version_skew", False, f"missing or invalid {key}.gitVersion")
+        versions.append((int(match[1]), int(match[2])))
+    client, server = versions
+    supported = client[0] == server[0] and abs(client[1] - server[1]) <= 1
+    return Check("kubectl_version_skew", supported, f"client={client[0]}.{client[1]}, server={server[0]}.{server[1]}; maximum minor skew=1")
 
 
 def _exists(runner: Runner, kubectl: str, check_id: str, args: list[str]) -> Check:
@@ -144,6 +161,7 @@ def _sandbox_rbac(runner: Runner, kubectl: str, namespace: str) -> Check:
 
 def collect_checks(namespace: str, *, kubectl: str = "kubectl", runner: Runner = _run, production: bool = True) -> list[Check]:
     checks = [
+        _version_skew(runner, kubectl),
         _exists(runner, kubectl, "namespace", ["get", "namespace", namespace]),
         _exists(runner, kubectl, "service_account", ["-n", namespace, "get", "serviceaccount", "researchforge-runtime"]),
         _exists(runner, kubectl, "workspace_pvc", ["-n", namespace, "get", "pvc", "researchforge-sandbox-workspace"]),

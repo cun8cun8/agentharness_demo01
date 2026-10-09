@@ -76,6 +76,7 @@ jobs:
         with:
           context: .
           file: backend/Dockerfile
+          build-args: KUBECTL_VERSION=${{ vars.KUBECTL_VERSION || 'v1.37.1' }}
           push: true
           tags: ${{ steps.image.outputs.name }}-api:${{ github.sha }}
           provenance: true
@@ -124,7 +125,7 @@ jobs:
           failures=0
           for component in api frontend sandbox trainer; do
             set +e
-            docker run --rm -v "$HOME/.docker:/root/.docker:ro" -v "$GITHUB_WORKSPACE/.run/trivy:/reports" aquasec/trivy:0.58.1 image --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL --format json --output "/reports/$component.json" "$IMAGE-$component:$REVISION"
+            docker run --rm -v "$HOME/.docker:/root/.docker:ro" -v "$GITHUB_WORKSPACE/.run/trivy:/reports" aquasec/trivy:0.75.0 image --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL --format json --output "/reports/$component.json" "$IMAGE-$component:$REVISION"
             status=$?
             set -e
             if [ "$status" -ne 0 ]; then failures=1; fi

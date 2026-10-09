@@ -134,6 +134,8 @@ async def cancel_job(
             detail="This Job kind does not support cooperative cancellation",
         )
     updated = store.request_job_cancel(job_id, request.reason if request else None)
+    if job.kind == "coding_acceptance" and job.metadata.get("agent_run_id"):
+        store.request_cancel(str(job.metadata["agent_run_id"]))
     if job.kind in {"agent_run", "agent_run_resume"}:
         from app.api.runs import runtime
 

@@ -20,6 +20,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+try:
+    from backend.scripts.run_github_repair_acceptance import repair_gate
+except ModuleNotFoundError:
+    from run_github_repair_acceptance import repair_gate
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -376,12 +381,21 @@ def run_repository_repair(args: argparse.Namespace, headers: dict[str, str]) -> 
         "pull_request": publish.get("pull_request"),
         "publish_reused": publish.get("push_reused", False),
     }
+    evidence = {}
+    if result_json.get("agent_run_id"):
+        run_path = f"/api/v1/runs/{urllib.parse.quote(str(result_json['agent_run_id']), safe='')}"
+        evidence = {"run": request_json(args.base_url, run_path, headers=headers),
+                    "artifacts": request_json(args.base_url, run_path + "/artifacts", headers=headers).get("items", [])}
+    gate = repair_gate(final, publish=args.publish, push=args.push, create_pull_request=args.create_pull_request,
+                       evidence=evidence, model_name=args.model_name)
     result = {
         "request": {key: value for key, value in payload.items() if key not in {"body"}},
         "job": final,
         "reused_existing": bool(reusable),
         "summary": repository_summary,
-        "passed": str(final.get("status") or "").lower() == "completed",
+        "evidence": evidence,
+        "gate": gate,
+        "passed": gate["passed"],
     }
     return result
 
@@ -451,6 +465,14 @@ def markdown_report(report: dict[str, Any]) -> str:
         if isinstance(pull_request, dict) and pull_request.get("url"):
             lines.append(f"- Draft PR：{pull_request['url']}")
     lines.append("")
+    for repository in report.get("repository_repairs", []):
+        summary = repository.get("summary") or {}
+        lines.extend(["", f"## 仓库 {repository['repository_id']}", "",
+                      f"- 结果：{'通过' if repository.get('passed') else '失败'}",
+                      f"- Job / Run：`{summary.get('job_id', '-')} / {summary.get('run_id', '-')}`",
+                      f"- 测试：`{summary.get('tests_passed', '-')}/{summary.get('tests_total', '-')}`"])
+        if repository.get("error"):
+            lines.append(f"- 错误：{repository['error']}")
     return "\n".join(lines)
 
 
@@ -486,6 +508,8 @@ def main() -> int:
         help="also run Golden Task acceptance before a repository repair; otherwise repository mode skips it",
     )
     parser.add_argument("--repository-id")
+    parser.add_argument("--repository-acceptance-file", type=Path,
+                        help="JSON array of at least two repository repair targets; runs Golden Tasks first")
     parser.add_argument("--repository-goal", default="修复仓库缺陷，不修改测试文件，并让测试全部通过。")
     parser.add_argument("--repository-test-command", default="pytest -q")
     parser.add_argument("--repository-test-timeout-seconds", type=int, default=180)
@@ -497,13 +521,32 @@ def main() -> int:
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--create-pull-request", action="store_true")
     args = parser.parse_args()
+    repository_targets = []
+    if args.repository_acceptance_file:
+        if args.repository_id or args.skip_golden or args.allow_mock or args.limit != 10:
+            parser.error("batch repository acceptance requires ten real Golden Tasks and no single --repository-id")
+        try:
+            repository_targets = json.loads(args.repository_acceptance_file.read_text(encoding="utf-8"))
+            if not isinstance(repository_targets, list) or len(repository_targets) < 2:
+                raise ValueError("at least two repository targets are required")
+            allowed = {"repository_id", "repository_goal", "repository_test_command", "repository_branch", "repository_title", "repository_body"}
+            for target in repository_targets:
+                if not isinstance(target, dict) or set(target) - allowed:
+                    raise ValueError("repository targets contain unsupported fields")
+                if any(not isinstance(target.get(key), str) or not target[key].strip()
+                       for key in ("repository_id", "repository_goal", "repository_test_command")):
+                    raise ValueError("each target requires repository_id, repository_goal and repository_test_command")
+            if len({target["repository_id"] for target in repository_targets}) != len(repository_targets):
+                raise ValueError("repository targets must be distinct")
+        except (OSError, ValueError) as exc:
+            parser.error(str(exc))
     if args.acceptance_retries < 0:
         parser.error("--acceptance-retries must be non-negative")
     if args.resume_job_id and args.fresh_golden:
         parser.error("--resume-job-id cannot be combined with --fresh-golden")
     if args.create_pull_request and not args.push:
         parser.error("--create-pull-request requires --push")
-    if (args.publish or args.push or args.create_pull_request) and not args.repository_id:
+    if (args.publish or args.push or args.create_pull_request) and not (args.repository_id or repository_targets):
         parser.error("publication flags require --repository-id")
     if args.create_pull_request and not args.publish:
         parser.error("--create-pull-request requires --publish")
@@ -536,6 +579,15 @@ def main() -> int:
                 report["repository_repair"] = run_repository_repair(args, headers)
             except Exception as exc:
                 report["repository_repair"] = {"passed": False, "error": str(exc)}
+        if repository_targets and report["golden_acceptance"].get("passed"):
+            report["repository_repairs"] = []
+            for target in repository_targets:
+                target_args = argparse.Namespace(**{**vars(args), **target})
+                try:
+                    result = run_repository_repair(target_args, headers)
+                except Exception as exc:
+                    result = {"passed": False, "error": str(exc)}
+                report["repository_repairs"].append({"repository_id": target["repository_id"], **result})
     else:
         report["golden_acceptance"] = {"passed": False, "skipped": True, "reason": "preflight_failed"}
 
@@ -543,6 +595,8 @@ def main() -> int:
         all(item["passed"] for item in checks)
         and report.get("golden_acceptance", {}).get("passed")
         and (not args.repository_id or report.get("repository_repair", {}).get("passed"))
+        and (not repository_targets or (len(report.get("repository_repairs", [])) == len(repository_targets)
+                                       and all(item.get("passed") for item in report["repository_repairs"])))
     )
     output = ROOT / args.output
     output.parent.mkdir(parents=True, exist_ok=True)

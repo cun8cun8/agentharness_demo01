@@ -24,10 +24,17 @@ class BenchmarkRunner:
         self,
         request: CreateEvaluationRunRequest,
         evaluation_id: str | None = None,
+        parent_job_id: str | None = None,
     ) -> EvaluationRunResponse:
         started = datetime.now(timezone.utc)
         items: list[EvaluationScore] = []
+        cancelled = False
         for task_id in request.task_ids:
+            if parent_job_id:
+                parent = self.store.read_job(parent_job_id)
+                if parent is None or parent.status == "cancelled" or parent.cancel_requested:
+                    cancelled = True
+                    break
             task = self.store.get_task(task_id)
             if task is None:
                 items.append(
@@ -41,12 +48,24 @@ class BenchmarkRunner:
                 continue
 
             golden = find_golden_task_for_repo(task.repo_path)
-            run = await self.runtime.run_task(
-                task_id=task.id,
-                agent_strategy_id=request.agent_strategy_id,
-                policy_version_id=request.policy_version_id,
-                model_name=request.model_name,
-            )
+            if parent_job_id:
+                run = self.store.create_run(
+                    task_id=task.id, agent_strategy_id=request.agent_strategy_id,
+                    policy_version_id=request.policy_version_id, model_name=request.model_name,
+                )
+                parent = self.store.read_job(parent_job_id)
+                if parent is None or parent.status == "cancelled" or parent.cancel_requested:
+                    self.store.request_cancel(run.id)
+                else:
+                    self.store.update_job(parent_job_id, parent.status, metadata={"agent_run_id": run.id})
+                run = await self.runtime.execute_run(run.id)
+            else:
+                run = await self.runtime.run_task(
+                    task_id=task.id,
+                    agent_strategy_id=request.agent_strategy_id,
+                    policy_version_id=request.policy_version_id,
+                    model_name=request.model_name,
+                )
             criteria = self._criteria_result(run.id, golden)
             success = self._run_matches_expectation(run.status, criteria)
             score = self._score_run(run.status, run.metrics, criteria)
@@ -92,6 +111,9 @@ class BenchmarkRunner:
                 )
             )
 
+        if parent_job_id:
+            parent = self.store.read_job(parent_job_id)
+            cancelled = cancelled or parent is None or parent.status == "cancelled" or parent.cancel_requested
         success_count = sum(1 for item in items if item.success)
         summary = {
             "success_rate": round(success_count / len(items), 4) if items else 0,
@@ -125,7 +147,7 @@ class BenchmarkRunner:
             policy_version_id=request.policy_version_id,
             agent_strategy_id=request.agent_strategy_id,
             model_name=resolved_model_name,
-            status=RunStatus.COMPLETED,
+            status=RunStatus.CANCELLED if cancelled else RunStatus.COMPLETED,
             summary=summary,
             items=items,
             started_at=started,

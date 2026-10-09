@@ -15,8 +15,7 @@ variable "name" {
 
 variable "kubernetes_version" {
   type        = string
-  description = "EKS Kubernetes version supported by the selected AWS region."
-  default     = "1.31"
+  description = "Explicit EKS Kubernetes version supported by the selected AWS region. Build the runtime with a kubectl client within one minor version of this cluster."
 }
 
 variable "vpc_cidr" {

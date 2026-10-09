@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from app.agent.critic import apply_model_verdict
 from app.config import get_settings
 from app.domain.schemas import ArtifactType, RunPhase, RunStatus, ToolStatus
+from app.tools.patches import patch_paths
 
 _locks: dict[str, asyncio.Lock] = {}
 _MAX_REPEATED_PATCHES = 2
@@ -298,6 +299,7 @@ async def execute_autonomous(runtime, run, task):
                 'If you need another file, call file.read with mode=read and its exact path, not mode=list. '
                 'Inspect relevant files before patching; after a failed test, inspect the latest failure and current source before changing code. '
                 'Never repeat an identical patch after the trace reports no progress; generate a corrected patch or use file.read/test.run first. '
+                'After a failed patch or validation, current_sources contains the latest file contents; construct the next patch against those contents, not the original baseline. '
                 + retry_hint +
                 'Do not modify tests or secrets. finish triggers independent tests and critic. '
                 'Treat the task success_criteria and expected_text below as the authoritative contract; do not invent extra requirements. '
@@ -393,6 +395,18 @@ async def execute_autonomous(runtime, run, task):
                         "error": validation.error_message,
                         "patch": evidence,
                     }
+                if action.tool == "file.write_patch" and evidence["status"] != ToolStatus.SUCCESS.value:
+                    try:
+                        paths = patch_paths(str(data.get("patch", "")))
+                    except ValueError:
+                        paths = []
+                    declared_source = str(task.execution_config.get("source_path") or "").strip()
+                    if declared_source and declared_source not in paths:
+                        paths.insert(0, declared_source)
+                    evidence["current_sources"] = []
+                    for path in paths[:3]:
+                        source = await tool("file.read", {"path": path, "mode": "read"}, RunPhase.ANALYZE_FAILURE)
+                        evidence["current_sources"].append({"path": path, "status": source.status.value, "output": source.output})
             receipts[key] = evidence
             runtime.store.update_run(run.id, metrics={"autonomous_pending": None, "autonomous_receipts": receipts})
             return {"history": [*state["history"], evidence][-12:]}

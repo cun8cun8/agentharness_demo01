@@ -118,7 +118,51 @@ def extract_evaluation_id(result: dict[str, Any]) -> str | None:
     return None
 
 
-def main() -> int:
+def acceptance_gate(evaluation, evidence, *, expected_count, model_name, min_success_rate, require_all_passed, allow_mock=False):
+    items = list(evaluation.get("items") or [])
+    passed_count = sum(bool(item.get("success")) for item in items)
+    success_rate = passed_count / len(items) if items else 0.0
+    run_ids = [str(item.get("agent_run_id") or "") for item in items]
+    complete = len(items) == expected_count and len(set(run_ids)) == expected_count and all(run_ids)
+    matching = complete and all(
+        evidence.get(run_id, {}).get("run", {}).get("id") == run_id
+        and evidence[run_id]["run"].get("task_id") == item.get("task_id")
+        and evidence[run_id]["run"].get("model_name") == model_name
+        for run_id, item in zip(run_ids, items)
+    )
+    traces = [float(item.get("metrics", {}).get("trace_completeness", 0)) for item in items]
+    trace_completeness = sum(traces) / len(traces) if traces else 0.0
+    policy_violations = sum(int(item.get("metrics", {}).get("policy_violation_count", 0)) for item in items)
+    real_runs = 0
+    fallback_count = 0
+    touched_tests = False
+    for run_id in run_ids:
+        record = evidence.get(run_id, {})
+        metrics = record.get("run", {}).get("metrics", {})
+        touched_tests = touched_tests or metrics.get("touched_tests") is not False
+        calls = [a.get("metadata", {}) for a in record.get("artifacts", []) if a.get("name", "").startswith("model-assist-")]
+        fallback_count += max(int(metrics.get("model_fallback_count", 0)), sum(bool(call.get("fallback_used")) for call in calls))
+        real_runs += bool(calls) and all(
+            call.get("provider") and call["provider"] != "mock"
+            and call.get("fallback_used") is False and int(call.get("total_tokens", 0)) > 0
+            for call in calls
+        )
+    all_passed = bool(items) and passed_count == len(items)
+    return {
+        "success_rate": round(success_rate, 4), "min_success_rate": min_success_rate,
+        "task_count": len(items), "expected_task_count": expected_count, "passed_count": passed_count,
+        "all_passed": all_passed, "require_all_passed": require_all_passed,
+        "evidence_matches_batch": bool(matching), "real_model_run_count": real_runs,
+        "fallback_count": fallback_count, "avg_trace_completeness": round(trace_completeness, 4),
+        "policy_violation_count": policy_violations, "touched_tests": bool(touched_tests),
+        "passed": bool(matching and success_rate >= min_success_rate
+                       and trace_completeness >= 0.95 and policy_violations == 0 and not touched_tests
+                       and (allow_mock or (real_runs == expected_count and fallback_count == 0))
+                       and (not require_all_passed or all_passed)),
+    }
+
+
+def _main() -> int:
     parser = argparse.ArgumentParser(description="Run ResearchForge Coding Harness V1 acceptance")
     parser.add_argument("--base-url", default="http://127.0.0.1:18001")
     parser.add_argument("--model-name", default="qwen-plus")
@@ -217,8 +261,8 @@ def main() -> int:
         except RuntimeError as exc:
             write_failure_report(args.output, acceptance=acceptance_request, error=exc)
             raise
-    if str(result.get("status", "")).lower() == "queued":
-        job_id = str(result.get("job_id") or "")
+    if str(result.get("status", "")).lower() in {"queued", "running"}:
+        job_id = str(result.get("job_id") or result.get("id") or "")
         if not job_id:
             error = RuntimeError("acceptance was queued without a job id")
             write_failure_report(args.output, acceptance=acceptance_request, error=error)
@@ -250,36 +294,33 @@ def main() -> int:
     if not isinstance(evaluation, dict):
         raise RuntimeError("acceptance completed without an evaluation result")
 
-    summary = dict(evaluation.get("summary") or {})
-    success_rate = float(summary.get("success_rate", 0))
-    task_count = int(summary.get("task_count", len(evaluation.get("items") or [])))
-    passed_count = sum(1 for item in evaluation.get("items") or [] if item.get("success"))
-    all_passed = task_count > 0 and passed_count == task_count
-    usage = request_json(
-        args.base_url,
-        f"/api/v1/models/usage?model_name={urllib.parse.quote(args.model_name)}&limit=1000",
-        headers=headers,
-    )
-    usage_summary = dict(usage.get("summary") or {})
+    evidence = {}
+    for item in evaluation.get("items") or []:
+        run_id = item.get("agent_run_id")
+        if run_id:
+            path = f"/api/v1/runs/{urllib.parse.quote(str(run_id), safe='')}"
+            evidence[str(run_id)] = {
+                "run": request_json(args.base_url, path, headers=headers),
+                "artifacts": request_json(args.base_url, path + "/artifacts", headers=headers).get("items", []),
+            }
+    usage_summary = {
+        "total_tokens": sum(int(record["run"].get("total_tokens", 0)) for record in evidence.values()),
+        "estimated_cost": round(sum(float(record["run"].get("total_cost", 0)) for record in evidence.values()), 6),
+        "duration_ms": sum(int(record["run"].get("duration_ms", 0)) for record in evidence.values()),
+        "scope": "evaluation_runs",
+    }
     report = {
+        "schema_version": "coding-acceptance.v1",
         "acceptance": acceptance_request,
         "validation": validation,
         "model": model,
         "model_health": model_health,
         "evaluation": evaluation,
         "usage": usage_summary,
-        "gate": {
-            "success_rate": success_rate,
-            "min_success_rate": args.min_success_rate,
-            "task_count": task_count,
-            "passed_count": passed_count,
-            "all_passed": all_passed,
-            "require_all_passed": args.require_all_passed,
-            "fallback_count": int(usage_summary.get("fallback_count", 0)),
-            "passed": success_rate >= args.min_success_rate
-            and (args.allow_mock or int(usage_summary.get("fallback_count", 0)) == 0)
-            and (not args.require_all_passed or all_passed),
-        },
+        "evidence": evidence,
+        "gate": acceptance_gate(evaluation, evidence, expected_count=args.limit, model_name=args.model_name,
+                                min_success_rate=args.min_success_rate, require_all_passed=args.require_all_passed,
+                                allow_mock=args.allow_mock),
     }
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     print(rendered)
@@ -287,6 +328,24 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
     return 0 if report["gate"]["passed"] else 2
+
+
+def main() -> int:
+    output_parser = argparse.ArgumentParser(add_help=False)
+    output_parser.add_argument("--output", type=Path)
+    output_args, _ = output_parser.parse_known_args()
+    try:
+        return _main()
+    except RuntimeError as exc:
+        if output_args.output is not None:
+            previous = {}
+            try:
+                previous = json.loads(output_args.output.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+            acceptance = previous.get("acceptance") if previous.get("error") == str(exc) else None
+            write_failure_report(output_args.output, acceptance=acceptance, error=exc)
+        raise
 
 
 if __name__ == "__main__":

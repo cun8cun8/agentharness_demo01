@@ -209,11 +209,19 @@ async def _execute_golden_acceptance_job(
                 agent_strategy_id=request.agent_strategy_id,
                 policy_version_id=request.policy_version_id,
                 model_name=request.model_name,
-            )
+            ),
+            parent_job_id=job.id,
         )
     except Exception as exc:
+        current = store.read_job(job.id)
+        if current is not None and current.status == "cancelled":
+            return {"status": "cancelled", "job_id": job.id}
         store.update_job(job.id, "failed", str(exc))
         raise
+    current = store.read_job(job.id)
+    if evaluation.status == "cancelled" or (current and (current.status == "cancelled" or current.cancel_requested)):
+        store.update_job(job.id, "cancelled", result_json={"evaluation_run_id": evaluation.id})
+        return {"status": "cancelled", "job_id": job.id}
     passed = [item for item in evaluation.items if item.success]
     failed = [item for item in evaluation.items if not item.success]
     result_json = {

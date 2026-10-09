@@ -5,6 +5,11 @@ PostgreSQL/Redis 示例，`production/` 提供 External Secrets、CNPG、S3、HP
 
 ## 构建镜像
 
+API 镜像默认使用 kubectl v1.37.1。远程集群的客户端与服务器主版本必须一致、次版本差不超过 1；
+不同版本集群应通过 `--build-arg KUBECTL_VERSION=v1.<minor>.<patch>` 构建匹配客户端。
+发布工作流支持仓库变量 `KUBECTL_VERSION`，集群预检会实际核对客户端/服务器版本并阻止不兼容部署。
+Terraform 的 `kubernetes_version` 必须显式填写所选 AWS 区域支持的 EKS 版本。
+
 ```powershell
 docker build -f backend/Dockerfile -t researchforge-api:latest .
 docker build -f frontend/Dockerfile --build-arg RESEARCHFORGE_BACKEND_URL=http://researchforge-api:8001 -t researchforge-frontend:latest .

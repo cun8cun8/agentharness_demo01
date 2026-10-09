@@ -59,14 +59,55 @@ def auth_headers(api_key_env: str, token_env: str) -> dict[str, str]:
 def poll_job(base_url: str, job_id: str, headers: dict[str, str], timeout: int) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        job = request_json(base_url, f"/api/v1/jobs/{urllib.parse.quote(job_id)}", headers=headers)
+        try:
+            job = request_json(base_url, f"/api/v1/jobs/{urllib.parse.quote(job_id)}", headers=headers)
+        except RuntimeError:
+            time.sleep(3)
+            continue
         if str(job.get("status") or "").lower() in {"completed", "failed", "cancelled", "paused"}:
             return job
         time.sleep(3)
     raise RuntimeError(f"repository repair job {job_id} did not finish within {timeout} seconds")
 
 
-def main() -> int:
+def repair_gate(job: dict[str, Any], *, publish: bool = False, push: bool = False, create_pull_request: bool = False,
+                evidence: dict[str, Any] | None = None, model_name: str | None = None) -> dict[str, Any]:
+    result = job.get("result_json") or {}
+    metrics = result.get("metrics") or {}
+    publication = result.get("publish") or {}
+    pr = publication.get("pull_request") or {}
+    tests_passed = metrics.get("tests_passed", metrics.get("validation_tests_passed"))
+    tests_total = metrics.get("tests_total", metrics.get("validation_tests_total"))
+    checks = {
+        "job_completed": job.get("status") == "completed",
+        "run_completed": result.get("run_status") == "completed" and bool(result.get("agent_run_id")),
+        "tests_passed": isinstance(tests_total, int) and tests_total > 0 and tests_passed == tests_total,
+        "no_test_changes": metrics.get("touched_tests") is False,
+        "no_fallback": metrics.get("model_fallback_count") == 0 and not metrics.get("fallback_used", False),
+        "no_policy_violations": metrics.get("policy_violation_count") == 0,
+        "trace_complete": float(metrics.get("trace_completeness", 0)) >= 0.95,
+    }
+    record = evidence or {}
+    run = record.get("run") or {}
+    calls = [artifact.get("metadata") or {} for artifact in record.get("artifacts") or []
+             if str(artifact.get("name") or "").startswith("model-assist-")]
+    checks["real_model_evidence"] = bool(
+        model_name and run.get("id") == result.get("agent_run_id") and run.get("model_name") == model_name
+        and run.get("status") == "completed" and calls
+        and all(call.get("provider") and call["provider"] != "mock"
+                and call.get("fallback_used") is False and int(call.get("total_tokens", 0)) > 0 for call in calls)
+    )
+    if publish:
+        checks["clean_source"] = metrics.get("source_clean") is True and bool(metrics.get("source_revision"))
+        checks["publication_created"] = bool(publication.get("commit")) and publication.get("base_commit") == metrics.get("source_revision")
+    if push:
+        checks["branch_pushed"] = publication.get("pushed") is True
+    if create_pull_request:
+        checks["draft_pr_created"] = bool(pr.get("url") and pr.get("number")) and pr.get("draft") is True and not publication.get("pull_request_error")
+    return {"checks": checks, "passed": all(checks.values())}
+
+
+def _main() -> int:
     parser = argparse.ArgumentParser(description="Run one ResearchForge GitHub repository repair acceptance")
     parser.add_argument("--base-url", default="http://127.0.0.1:18001")
     parser.add_argument("--repository-id", required=True)
@@ -127,19 +168,29 @@ def main() -> int:
     if not isinstance(job, dict) or not job.get("id"):
         raise RuntimeError(f"repair did not return a job: {json.dumps(queued, ensure_ascii=False)}")
     final_job = poll_job(args.base_url, str(job["id"]), headers, args.job_timeout_seconds)
+    evidence = {}
+    run_id = (final_job.get("result_json") or {}).get("agent_run_id")
+    if run_id:
+        run_path = f"/api/v1/runs/{urllib.parse.quote(str(run_id), safe='')}"
+        evidence = {"run": request_json(args.base_url, run_path, headers=headers),
+                    "artifacts": request_json(args.base_url, run_path + "/artifacts", headers=headers).get("items", [])}
     publications = request_json(
         args.base_url,
         f"/api/v1/integrations/repositories/{repository_path}/publications",
         headers=headers,
     )
+    gate = repair_gate(final_job, publish=args.publish, push=args.publish, create_pull_request=args.publish,
+                       evidence=evidence, model_name=args.model_name)
     report = {
         "repository_id": args.repository_id,
         "repository_health": health,
         "request": repair_request,
         "queue_response": queued,
         "job": final_job,
+        "evidence": evidence,
         "publications": publications,
-        "passed": final_job.get("status") == "completed",
+        "gate": gate,
+        "passed": gate["passed"],
     }
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     print(rendered)
@@ -147,6 +198,21 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
     return 0 if report["passed"] else 2
+
+
+def main() -> int:
+    output_parser = argparse.ArgumentParser(add_help=False)
+    output_parser.add_argument("--output", type=Path)
+    output_args, _ = output_parser.parse_known_args()
+    try:
+        return _main()
+    except RuntimeError as exc:
+        if output_args.output is not None:
+            output_args.output.parent.mkdir(parents=True, exist_ok=True)
+            output_args.output.write_text(json.dumps({"schema_version": "repository-acceptance.failure.v1",
+                                                     "passed": False, "error": str(exc)}, indent=2) + "\n",
+                                          encoding="utf-8")
+        raise
 
 
 if __name__ == "__main__":

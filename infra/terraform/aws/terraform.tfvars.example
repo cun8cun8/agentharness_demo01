@@ -1,5 +1,7 @@
 region               = "ap-southeast-1"
 name                 = "researchforge-prod"
+# Required: choose an EKS version supported in this region and set it explicitly.
+# kubernetes_version = "1.MINOR"
 artifact_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_ARTIFACT_BUCKET"
 # database_backup_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_DATABASE_BACKUP_BUCKET"
 

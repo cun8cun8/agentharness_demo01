@@ -213,6 +213,41 @@ def test_expected_contract_gap_is_detected_when_tests_miss_minimum_page_rule(mon
     ) == []
 
 
+def test_failed_validation_supplies_current_source_to_next_plan(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCHFORGE_PERSISTENCE", "0")
+    monkeypatch.setenv("RESEARCHFORGE_AGENT_WORKSPACE_ROOT", str(tmp_path / "workspaces"))
+    monkeypatch.setenv("RESEARCHFORGE_CHECKPOINT_PATH", str(tmp_path / "checkpoint.sqlite"))
+    get_settings.cache_clear()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "value.py").write_text("value = 0\n")
+    (repo / "test_value.py").write_text("from value import value\ndef test_value():\n    assert value == 2\n")
+    store = InMemoryStore()
+    task = store.create_task(CreateTaskRequest(title="repair value", goal="Set value to two", repo_path=str(repo),
+        test_command="python -m pytest -q", execution_config={"runtime": "langgraph", "source_path": "value.py"}))
+    run = store.create_run(task.id, "repair_with_critic_v3", "policy_default_v1", "mock-coding-agent")
+    runtime = AgentRuntime(store)
+    runtime.phase_delay_seconds = 0
+    plans = []
+    def model(*_args, **kwargs):
+        if kwargs["phase"] == "autonomous-critic":
+            return SimpleNamespace(output_text=json.dumps({"accepted": True, "score": 1, "reasons": []}), fallback_used=False)
+        plans.append(kwargs["prompt"])
+        previous = 0 if len(plans) == 1 else 1
+        next_value = previous + 1
+        patch = f"--- a/value.py\n+++ b/value.py\n@@ -1 +1 @@\n-value = {previous}\n+value = {next_value}\n"
+        return SimpleNamespace(output_text=json.dumps({"tool": "file.write_patch", "input": {"patch": patch}}), fallback_used=False)
+    monkeypatch.setattr(runtime, "_model_assist", model)
+    try:
+        result = asyncio.run(asyncio.wait_for(runtime.execute_run(run.id), timeout=120))
+    finally:
+        get_settings.cache_clear()
+    assert result.status == RunStatus.COMPLETED, result.error_summary
+    assert "current_sources" in plans[1]
+    assert "value = 1" in plans[1]
+    assert (repo / "value.py").read_text() == "value = 0\n"
+
+
 def test_run_lease_survives_a_blocked_event_loop(monkeypatch):
     import os
     import subprocess
