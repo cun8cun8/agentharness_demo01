@@ -1,5 +1,8 @@
 name: Release ResearchForge
 on:
+  push:
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       deploy:
@@ -7,7 +10,7 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: read
+  contents: write
   packages: write
 concurrency:
   group: researchforge-production
@@ -22,6 +25,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          package = json.loads(Path("frontend/package.json").read_text(encoding="utf-8"))
+          expected = f"v{package['version']}"
+          if tag != expected:
+              raise SystemExit(f"release tag {tag!r} does not match frontend version {expected!r}")
+          print(f"validated release tag {tag}")
+          PY
       - name: Validate open-source release prerequisites
         run: python backend/scripts/oss_preflight.py
       - run: pip install -r backend/requirements.txt
@@ -42,9 +62,11 @@ jobs:
           IMAGE: ${{ steps.image.outputs.name }}
           REVISION: ${{ github.sha }}
         run: |
+          VERSION="$GITHUB_SHA"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then VERSION="$GITHUB_REF_NAME"; fi
           python backend/scripts/release_manifest.py \
             --output release-manifest.json \
-            --version "$REVISION" \
+            --version "$VERSION" \
             --require-images \
             --image "api=$IMAGE-api:$REVISION" \
             --image "frontend=$IMAGE-frontend:$REVISION" \
@@ -98,6 +120,12 @@ jobs:
           path: release-manifest.json
           if-no-files-found: error
           retention-days: 90
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release-manifest.json --verify-tag --title "ResearchForge $RELEASE_TAG" --generate-notes
   deploy:
     if: inputs.deploy
     needs: build
