@@ -18,7 +18,7 @@ class FileReadTool(Tool):
     name = "file.read"
     description = "Read a file from the task repository."
     risk_level = "L0"
-    input_schema = {"path": "string"}
+    input_schema = {"path": "string", "offset": "integer (optional, default 0)"}
     output_schema = {"content": "string", "exists": "boolean"}
 
     async def call(self, input_data: dict[str, Any], context: ToolContext) -> ToolResult:
@@ -31,15 +31,21 @@ class FileReadTool(Tool):
             if not candidate.exists():
                 raise ValueError("FILE_NOT_FOUND")
             content = _read_text_file(candidate)
+            offset = input_data.get("offset", 0)
+            if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset > len(content):
+                raise ValueError("FILE_OFFSET_OUT_OF_RANGE")
+            end = min(offset + 8000, len(content))
             return ToolResult(
                 tool_name=self.name,
                 status=ToolStatus.SUCCESS,
                 input=input_data,
                 output={
-                    "content": content[:8000],
+                    "content": content[offset:end],
                     "exists": True,
                     "size_bytes": candidate.stat().st_size,
-                    "truncated": len(content) > 8000,
+                    "truncated": end < len(content),
+                    "offset": offset,
+                    "next_offset": end if end < len(content) else None,
                 },
                 duration_ms=int((perf_counter() - started) * 1000),
             )

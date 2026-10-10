@@ -294,6 +294,7 @@ async def execute_autonomous(runtime, run, task):
                 system_prompt=(strategy.repair_prompt if strategy else "Repair the repository.") +
                 '\nReturn one JSON object: {"tool":"file.read|file.write_patch|git.diff|test.run|finish","input":{},"reason":"..."}. '
                 'file.read accepts path plus mode=read/list/search and optional query. file.write_patch requires a unified diff in patch. '
+                'For truncated file.read output, read the next page using offset=next_offset; repeating the same path without offset returns the same truncated page. '
                 'In every patch hunk, prefix unchanged lines with one space, added lines with +, and removed lines with -. Never omit these prefixes. '
                 'The baseline evidence includes the declared source file content; use it directly to construct a context-accurate patch. '
                 'If you need another file, call file.read with mode=read and its exact path, not mode=list. '

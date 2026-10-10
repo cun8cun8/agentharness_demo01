@@ -194,6 +194,14 @@ class PostgresRecordStore(InMemoryStore):
     def read_run(self, run_id: str) -> AgentRunResponse | None:
         return self._read_entity("runs", run_id, AgentRunResponse)
 
+    def get_task(self, task_id: str) -> TaskResponse | None:
+        item = self.tasks.get(task_id)
+        if item is None and not self._initializing:
+            item = self._read_entity("tasks", task_id, TaskResponse)
+            if item is not None:
+                self.tasks[task_id] = item
+        return item
+
     def read_runs(self) -> list[AgentRunResponse]:
         return self._read_collection("runs", AgentRunResponse)
 

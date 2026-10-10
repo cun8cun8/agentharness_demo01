@@ -63,6 +63,19 @@ def test_file_read_and_patch_are_repo_scoped(tmp_path) -> None:
 
     outside = call(FileReadTool().call({"path": "../outside.txt"}, context(str(repo))))
     assert outside.status == ToolStatus.FAILED
+
+
+def test_file_read_pages_reach_content_after_truncation(tmp_path):
+    content = "a" * 8000 + "tail function\n"
+    (tmp_path / "large.py").write_text(content, encoding="utf-8")
+    first = call(FileReadTool().call({"path": "large.py"}, context(str(tmp_path))))
+    assert first.output["truncated"] is True
+    second = call(FileReadTool().call({"path": "large.py", "offset": first.output["next_offset"]}, context(str(tmp_path))))
+    assert first.output["content"] + second.output["content"] == content
+    assert second.output["next_offset"] is None
+    assert second.output["truncated"] is False
+    invalid = call(FileReadTool().call({"path": "large.py", "offset": -1}, context(str(tmp_path))))
+    assert invalid.status == ToolStatus.FAILED
     assert outside.error_message == "PATH_OUTSIDE_REPO"
 
 
