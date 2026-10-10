@@ -144,6 +144,13 @@ https://github.com/cun8cun8/agentharness_demo01/actions/runs/38015885502
 Release: https://github.com/cun8cun8/agentharness_demo01/releases/tag/v0.2.10
 No production cluster was deployed or available for live preflight validation.
 
+The final local production probe passed API health, dependencies and 32/32
+functional readiness checks. Kubernetes cluster preflight was run read-only and
+failed because the configured API endpoint returned HTML instead of Kubernetes
+JSON. Static production preflight also correctly blocked unresolved EFS, S3/KMS,
+domain, model and immutable-image placeholders. A restore drill was not run
+because no production PostgreSQL DSN was configured; no database was modified.
+
 ## Regression evidence
 
 The final full backend suite passed 341 tests with 11 environment-dependent skips
