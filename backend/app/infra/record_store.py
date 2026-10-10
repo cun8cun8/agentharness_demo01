@@ -359,11 +359,13 @@ class PostgresRecordStore(InMemoryStore):
     def get_user(self, user_id: str) -> UserResponse | None:
         return self._read_entity("users", user_id, UserResponse)
 
-    def _memory_records(self, collections: set[str]) -> dict[tuple[str, str], object]:
+    def _memory_records(self, collections: set[str], keys=None) -> dict[tuple[str, str], object]:
         """Build a small persistence delta without serializing the full store."""
         records: dict[tuple[str, str], object] = {}
         for collection in collections:
             value = getattr(self, collection, {})
+            if keys is not None and collection in keys and isinstance(value, dict):
+                value = {key: value[key] for key in keys[collection] if key in value}
             if collection == "events":
                 for event_items in value.values():
                     for event in event_items:
@@ -410,24 +412,41 @@ class PostgresRecordStore(InMemoryStore):
         return persisted
 
     @contextmanager
-    def _targeted_mutation(self, collections: set[str]):
+    def _targeted_mutation(self, collections: set[str], keys=None):
         """Run a hot-path mutation without the global full-snapshot writer lock."""
+        if self._unit_session is not None:
+            yield
+            return
         with self._mutex, Session(self._engine) as session, session.begin():
-            baseline = self._memory_records(collections)
+            original_keys = {collection: set(getattr(self, collection)) for collection in collections} if keys is not None else None
+            baseline = self._memory_records(collections, keys)
             saved = {
-                collection: deepcopy(getattr(self, collection))
+                collection: deepcopy(getattr(self, collection)) if keys is None else {
+                    key: deepcopy(getattr(self, collection)[key]) for key in keys.get(collection, set())
+                    if key in getattr(self, collection)
+                }
                 for collection in collections
             }
             self._unit_session = session
             try:
                 yield
-                current = self._memory_records(collections)
+                changed_keys = None if keys is None else {
+                    collection: keys.get(collection, set()) | (set(getattr(self, collection)) - original_keys[collection])
+                    for collection in collections
+                }
+                current = self._memory_records(collections, changed_keys)
                 persisted = self._write_targeted_records(session, baseline, current)
                 session.flush()
                 self._baseline.update(persisted)
             except Exception:
                 for collection, value in saved.items():
-                    setattr(self, collection, value)
+                    if keys is None:
+                        setattr(self, collection, value)
+                    else:
+                        target = getattr(self, collection)
+                        for key in set(target) - original_keys[collection]:
+                            del target[key]
+                        target.update(value)
                 raise
             finally:
                 self._unit_session = None
@@ -739,6 +758,15 @@ class PostgresRecordStore(InMemoryStore):
 
     def _upsert_repository(self, item: RepositoryConnectionResponse) -> None:
         with self._mutex, Session(self._engine) as session, session.begin():
+            workspace = self.workspaces.get(item.workspace_id)
+            if workspace is None:
+                raise ValueError("Workspace not found")
+            # Fresh stores seed compatibility workspaces after migrations run.
+            session.execute(text(
+                "insert into workspaces (id, name, owner_id, status, created_at) "
+                "values (:id, :name, :owner_id, :status, :created_at) on conflict (id) do nothing"
+            ), {"id": workspace.id, "name": workspace.name, "owner_id": workspace.owner_id,
+                "status": workspace.status, "created_at": workspace.created_at})
             row = session.get(RepositoryConnectionRecord, item.id, with_for_update=True)
             fields = {
                 "workspace_id": item.workspace_id,
@@ -941,6 +969,75 @@ class PostgresRecordStore(InMemoryStore):
     def create_task(self, request):
         with self._targeted_mutation({"tasks", "audit_logs"}):
             return InMemoryStore.create_task(self, request)
+
+    def _runtime_keys(self, run_id, collections, entity=None):
+        keys = {collection: set() for collection in collections}
+        if run_id is not None:
+            if "events" in keys:
+                keys["events"] = {run_id}
+            if "runs" in keys:
+                keys["runs"] = {run_id}
+            if "tasks" in keys:
+                keys["tasks"] = {self.runs[run_id].task_id}
+        if entity:
+            collection, key = entity
+            keys[collection].add(key)
+        return keys
+
+    def update_run(self, run_id, *args, **kwargs):
+        collections = {"runs", "tasks", "events", "audit_logs", "model_canaries", "model_configs"}
+        keys = self._runtime_keys(run_id, collections)
+        canary_id = self.runs[run_id].metrics.get("canary_id")
+        if canary_id:
+            # Canary monitoring can modify model routing; retain its existing scope.
+            with self._targeted_mutation(collections):
+                return InMemoryStore.update_run(self, run_id, *args, **kwargs)
+        with self._targeted_mutation(collections, keys):
+            return InMemoryStore.update_run(self, run_id, *args, **kwargs)
+
+    def add_step(self, run_id, *args, **kwargs):
+        collections = {"steps", "events"}
+        with self._targeted_mutation(collections, self._runtime_keys(run_id, collections)):
+            return InMemoryStore.add_step(self, run_id, *args, **kwargs)
+
+    def record_run_usage(self, run_id, token_delta, cost_delta):
+        with self._targeted_mutation({"runs"}, {"runs": {run_id}}):
+            return InMemoryStore.record_run_usage(self, run_id, token_delta, cost_delta)
+
+    def record_model_usage(self, **kwargs):
+        collections = {"model_usage_ledger", "audit_logs"}
+        with self._targeted_mutation(collections, {collection: set() for collection in collections}):
+            return InMemoryStore.record_model_usage(self, **kwargs)
+
+    def finish_step(self, step_id, *args, **kwargs):
+        collections = {"steps", "events"}
+        keys = self._runtime_keys(self.steps[step_id].run_id, collections, ("steps", step_id))
+        with self._targeted_mutation(collections, keys):
+            return InMemoryStore.finish_step(self, step_id, *args, **kwargs)
+
+    def add_tool_call(self, tool_call):
+        collections = {"tool_calls", "events"}
+        keys = self._runtime_keys(tool_call.run_id, collections, ("tool_calls", tool_call.id))
+        with self._targeted_mutation(collections, keys):
+            return InMemoryStore.add_tool_call(self, tool_call)
+
+    def add_artifact(self, artifact):
+        collections = {"artifacts", "events"}
+        keys = self._runtime_keys(artifact.run_id, collections, ("artifacts", artifact.id))
+        with self._targeted_mutation(collections, keys):
+            return InMemoryStore.add_artifact(self, artifact)
+
+    def add_event(self, event_type, task_id, run_id, payload, step_id=None):
+        if event_type in {"run.completed", "run.failed", "run.cancelled", "run.paused"}:
+            # Terminal hooks may mutate additional collections.
+            return InMemoryStore.add_event(self, event_type, task_id, run_id, payload, step_id)
+        collections = {"events"}
+        with self._targeted_mutation(collections, self._runtime_keys(run_id, collections)):
+            return InMemoryStore.add_event(self, event_type, task_id, run_id, payload, step_id)
+
+    def add_audit_log(self, *args, **kwargs):
+        with self._targeted_mutation({"audit_logs"}, {"audit_logs": set()}):
+            return InMemoryStore.add_audit_log(self, *args, **kwargs)
 
     def create_run(self, task_id, agent_strategy_id, policy_version_id, model_name):
         with self._targeted_mutation({"tasks", "runs", "events", "audit_logs"}):

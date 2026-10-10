@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.domain.schemas import CreateMemoryItemRequest, CreateTaskRequest, ReleaseGateResponse, UpdateUserRequest
+from app.domain.schemas import CreateMemoryItemRequest, CreateTaskRequest, CreateRepositoryConnectionRequest, ReleaseGateResponse, UpdateUserRequest
 from app.infra.records import StoreConflictError, flatten_snapshot, inflate_records, merge_record
 from app.infra.store import InMemoryStore
 from app.agent.critic import apply_model_verdict
@@ -160,6 +160,9 @@ def test_postgres_two_writers_conflict_recovery_and_cancel(monkeypatch):
     first = PostgresRecordStore()
     second = PostgresRecordStore()
     try:
+        repository = first.create_repository_connection(CreateRepositoryConnectionRequest(
+            name="fresh typed repository", provider="local", local_path="/tmp/acceptance"))
+        assert second.get_repository_connection(repository.id).workspace_id == "workspace_default"
         left = first.create_task(CreateTaskRequest(title="writer one", goal="persist"))
         right = second.create_task(CreateTaskRequest(title="writer two", goal="persist"))
         first.refresh()
