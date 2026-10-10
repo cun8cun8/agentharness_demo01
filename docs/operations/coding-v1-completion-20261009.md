@@ -80,7 +80,7 @@ stricter than the standalone V1 70% acceptance threshold. Publication flags
 authorize branch pushes and draft PR creation. Review the generated changes before
 using them. The runner does not merge PRs or automatically undo a publication.
 
-## Real repositories: external acceptance still open
+## Real repository repairs and rollback
 
 Two genuine defects were reproduced on separate test branches:
 
@@ -90,16 +90,29 @@ Two genuine defects were reproduced on separate test branches:
 | cun8cun8/mediaforge-aigc-production-platform | Nonfinite receipt age limits bypassed freshness checks |
 
 Branch: `codex/v1-acceptance-base-20261009` in each repository. Only regression
-tests were uploaded to these branches. The original default branches were not
-changed on GitHub. Repair attempts failed the remote reachability preflight;
-no new model repair run, draft PR or PR rollback proof was produced by these attempts.
-See `.run/acceptance/v1-harness-repair-20261009.log` and
-`.run/acceptance/v1-mediaforge-repair-20261009.log`.
+tests were uploaded to these branches. GitHub API baselines were checked against
+clean local HEAD revisions, enabling explicit API transport despite Git HTTPS failures.
 
-GitHub REST was reachable while Git HTTPS connections failed. Existing older PRs
-are not counted as evidence for this acceptance. Required remaining work is to
-restore Git transport, run both model repairs, review their diffs, publish draft
-PRs, and record rollback of the unmerged drafts without changing default branches.
+Both repairs passed the strict real-model, tests, policy and trace gates:
+Harness used qwen-plus and passed 1/1 tests; MediaForge used qwen3-coder-plus and
+passed 5/5. Both had no test edits, no fallback and complete traces. Diffs were
+reviewed before publication. Actual draft PRs:
+https://github.com/cun8cun8/agentharness_demo01/pull/18
+https://github.com/cun8cun8/mediaforge-aigc-production-platform/pull/9
+Both were subsequently closed without merging. Independent GitHub API checks
+confirmed closed/unmerged state and unchanged default-branch revisions during rollback.
+Evidence: `.run/acceptance/real-repair-final-batch.json` and
+`.run/acceptance/real-repair-publication-rollback.json`.
+
+MediaForge autonomous attempts failed and remain recorded. Its successful repair
+used an operator-supplied minimal candidate, reviewed and applied by the real
+coding model and independently validated. This is assisted repair evidence,
+not an unassisted benchmark improvement. Its App installation lacked contents
+write access, so publication explicitly used the existing Git credential through
+the supported credential_ref path; Harness publication used the App installation.
+These two repairs ran in the loopback development acceptance service at port
+18021, using isolated workspaces. They do not establish production Docker sandbox
+isolation; the separate Golden Task run used the Docker acceptance stack.
 
 ## Security and release
 

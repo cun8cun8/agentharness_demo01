@@ -8,7 +8,7 @@
 - 本批次用量：86,282 tokens、估算成本 0.172564 USD。运行在独立 PostgreSQL/Redis 验收实例；不代表历史数据量下的性能验收通过。
 - 补丁验证失败后读取当前源码、批次取消传播、运行中 Job 恢复轮询、真实模型证据门禁、多仓库批量验收、长文件分页和模型动作解析已实现。最终后端回归 341 项通过、11 项跳过、0 失败，详见 `docs/operations/coding-v1-completion-20261009.md`。
 - SFT/DPO/GRPO 各完成一次真实 CPU 离线训练烟测；不能据此认定 GPU 或生产训练验收通过。
-- 两个真实仓库已建立独立缺陷回归分支，修复验收被 GitHub Git HTTPS 连通性预检阻断；本轮草稿 PR 与回滚闭环尚未完成。
+- 两个真实仓库均完成修复、独立测试、Critic、草稿 PR 创建与未合并回滚：Harness PR #18（1/1 测试），MediaForge PR #9（5/5 测试），默认分支均未因回滚改变。第二个仓库为人工候选补丁辅助真实模型修复，发布显式使用已有 Git 凭据引用；不计作无辅助自治能力证明。证据：`.run/acceptance/real-repair-publication-rollback.json`。
 - v0.2.10 已正式发布，四镜像 Trivy 扫描均为 0 个可修复 HIGH/CRITICAL；远端测试、训练烟测、漏洞门禁全部通过。旧 v0.2.7/v0.2.8/v0.2.9 门禁失败记录保留，不视为成功发布。证据：`.run/release-v0.2.10/cloud-reports/`，GitHub Actions Run `38015885502`。
 - 历史 PostgreSQL 热路径写入已改为当前记录持久化；原库 513 Runs、3,264 Steps、11,141 审计记录下，10 次更新 Run/新增 Step 的中位数 364.55 ms、最大值 781.42 ms，全量快照写入为 0。证据：`.run/acceptance/historical-postgres-performance-20261010.json`；不替代完整生产容量验收。
 
