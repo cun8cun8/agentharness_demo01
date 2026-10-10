@@ -22,8 +22,12 @@ Evidence: `.run/acceptance/v1-clean-ten-20261009.json`.
 The run used a separate PostgreSQL/Redis acceptance instance at port 18011.
 The existing application remains at API port 18001 and frontend port 13010.
 This result does not establish acceptable performance with the original store's
-historical data. Full-snapshot writes caused excessive latency there; that
-performance issue remains open.
+historical data. The 2026-10-10 scoped persistence fix was separately exercised
+against the original store: 513 runs, 3,264 steps and 11,141 audit records.
+Ten run-update/step-add samples had median 364.55 ms and maximum 781.42 ms,
+with zero full-snapshot writes. Evidence:
+`.run/acceptance/historical-postgres-performance-20261010.json`.
+This is hot-path latency evidence, not a complete production capacity benchmark.
 
 Price and pagination repairs failed after repeated patches. Their traces showed
 that retries used source context from before the applied patch. The runtime now
@@ -114,16 +118,23 @@ zero findings. kubectl can be configured through the KUBECTL_VERSION repository
 variable; cluster preflight requires same major version and at most one minor
 version difference. Terraform requires an explicit supported EKS version.
 
-Final four-image scans and a successful new release remain outstanding. Local
-scanner acquisition failed due to interrupted downloads. Upgraded dependencies
-alone are not evidence of zero remaining vulnerabilities. No new release tag is
-being presented as successful, and no production cluster was available for live
-preflight validation.
+The v0.2.8 cloud scan reduced findings to API 4, frontend 0, sandbox 0 and trainer 0.
+All four API findings were in kubectl's embedded Go libraries. kubectl v1.37.1
+was rebuilt from checksum-verified official source with Go 1.27.2 and x/net 0.60.0.
+The v0.2.9 candidate failed regression tests and was not published.
+
+The v0.2.10 release passed all gates and was published on 2026-10-10.
+Actual downloaded cloud reports under `.run/release-v0.2.10/cloud-reports/`
+contain zero fixable HIGH/CRITICAL findings in all four images. Remote one-step
+SFT, DPO and GRPO smoke tests also passed. Release workflow:
+https://github.com/cun8cun8/agentharness_demo01/actions/runs/38015885502
+Release: https://github.com/cun8cun8/agentharness_demo01/releases/tag/v0.2.10
+No production cluster was deployed or available for live preflight validation.
 
 ## Regression evidence
 
-The final full backend suite passed 324 tests with 11 environment-dependent skips
-and no failures in 160.60 seconds. Output is stored in
-`.run/acceptance/backend-final-suite-20261009.log`. The API image was rebuilt with
-the final runtime and acceptance scripts. This full-suite result supersedes the
-earlier run's outdated cluster-preflight fixture failure.
+The final full backend suite passed 341 tests with 11 environment-dependent skips
+and no failures in 480.57 seconds. Output is stored in
+`.run/acceptance/final-backend-parser-fixed.log`. The v0.2.10 cloud release suite
+also passed before image builds and scanning. The real PostgreSQL hot-path and
+multiwriter suite passed 10 tests separately, including fresh workspace insertion.

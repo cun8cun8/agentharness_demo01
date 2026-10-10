@@ -20,6 +20,10 @@ def normalize_patch(patch: str, *, missing_prefix: str = " ") -> str:
     """
     if missing_prefix not in {" ", "+"}:
         raise ValueError("PATCH_PREFIX_INVALID")
+    # A missing diff terminator is not a no-newline marker for the source file.
+    # Preserve line separation when a final context line precedes untouched code.
+    if patch and not patch.endswith("\n"):
+        patch += "\n"
     lines = patch.replace("\r\n", "\n").splitlines(keepends=True)
     normalized: list[str] = []
     index = 0

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.11 - 2026-10-10
+
+- Preserve source line separation when a generated unified diff omits its final newline and the fallback applies a hunk before untouched code.
+- Record historical PostgreSQL hot-path performance and the successful v0.2.10 four-image security release evidence.
+
 ## 0.2.10 - 2026-10-10
 
 - Preserve the existing repository health call contract outside the explicitly verified GitHub cache path.
