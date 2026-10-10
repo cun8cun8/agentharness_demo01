@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.10 - 2026-10-10
+
+- Preserve the existing repository health call contract outside the explicitly verified GitHub cache path.
+- Include the hosted action parsing and patched kubectl rebuild prepared in 0.2.9; earlier release candidates remain blocked by their failed gates.
+
 ## 0.2.9 - 2026-10-10
 
 - Rebuild kubectl v1.37.1 from checksum-verified official source using Go 1.27.2 and golang.org/x/net 0.60.0 to address four fixable HIGH vulnerabilities.

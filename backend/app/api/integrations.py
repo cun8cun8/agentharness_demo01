@@ -1283,7 +1283,7 @@ async def _execute_repository_repair_job(
                     "message": "远端同步失败，已按显式请求使用最近一次成功同步的本地缓存验收。",
                 }
             repository = store.get_repository_connection(repository_id) or repository
-        health = _repository_health(repository, verify_remote=not verified_cache)
+        health = _repository_health(repository, verify_remote=False) if verified_cache else _repository_health(repository)
         repo_path = health.cache_path or repository.local_path
         if not repo_path or not health.path_exists:
             raise RuntimeError(health.message or "REPOSITORY_PATH_UNAVAILABLE")
