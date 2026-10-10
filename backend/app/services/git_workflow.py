@@ -152,6 +152,19 @@ def _use_github_api(repository) -> bool:
     return repository.provider == "github" and get_settings().github_git_transport == "api"
 
 
+def verify_cached_github_baseline(repository, source: Path) -> str:
+    if not _use_github_api(repository) or not get_settings().network_enabled:
+        raise ValueError("GITHUB_API_TRANSPORT_REQUIRED")
+    if not source.is_dir() or git(["status", "--porcelain"], source):
+        raise ValueError("CACHED_SOURCE_MUST_BE_CLEAN")
+    revision = git(["rev-parse", "HEAD"], source)
+    _assert_remote_revision(repository, source, revision)
+    _assert_source_revision(source, revision)
+    if git(["status", "--porcelain"], source):
+        raise ValueError("CACHED_SOURCE_MUST_BE_CLEAN")
+    return revision
+
+
 def _github_client(repository) -> httpx.Client:
     parsed = urlsplit(repository.url or "")
     parts = parsed.path.strip("/").removesuffix(".git").split("/")

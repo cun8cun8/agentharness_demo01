@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.9 - 2026-10-10
+
+- Rebuild kubectl v1.37.1 from checksum-verified official source using Go 1.27.2 and golang.org/x/net 0.60.0 to address four fixable HIGH vulnerabilities.
+- Accept a single structured model action surrounded by prose or code fences, while rejecting ambiguous action responses.
+- Verify clean cached GitHub API baselines without redundant Git HTTPS synchronization.
+
 ## 0.2.8 - 2026-10-10
 
 - GitHub 发布支持显式 Git API 传输，并验证 Blob/Tree/Commit 哈希、基线版本和分支冲突。

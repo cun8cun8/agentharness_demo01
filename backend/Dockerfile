@@ -1,8 +1,19 @@
+ARG KUBECTL_VERSION=v1.37.1
+FROM golang:1.27.2-bookworm AS kubectl-build
+ARG KUBECTL_VERSION
+ENV CGO_ENABLED=0 GOWORK=off
+WORKDIR /src/kubernetes
+RUN curl -fsSLo /tmp/kubernetes-src.tar.gz "https://dl.k8s.io/${KUBECTL_VERSION}/kubernetes-src.tar.gz" \
+    && curl -fsSLo /tmp/kubernetes-src.sha256 "https://dl.k8s.io/${KUBECTL_VERSION}/kubernetes-src.tar.gz.sha256" \
+    && echo "$(cat /tmp/kubernetes-src.sha256)  /tmp/kubernetes-src.tar.gz" | sha256sum --check \
+    && tar -xzf /tmp/kubernetes-src.tar.gz \
+    && go mod edit -require=golang.org/x/net@v0.60.0 \
+    && go build -mod=mod -trimpath -ldflags "-X k8s.io/component-base/version.gitVersion=${KUBECTL_VERSION}" -o /out/kubectl ./cmd/kubectl
+
 FROM python:3.12-slim
 
 COPY --from=docker:29.9.0-cli /usr/local/bin/docker /usr/local/bin/docker
-
-ARG KUBECTL_VERSION=v1.37.1
+COPY --from=kubectl-build /out/kubectl /usr/local/bin/kubectl
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -11,11 +22,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y ca-certificates curl git postgresql-client \
-    && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
-    && curl -fsSLo /tmp/kubectl.sha256 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-    && echo "$(cat /tmp/kubectl.sha256)  /usr/local/bin/kubectl" | sha256sum --check \
-    && chmod +x /usr/local/bin/kubectl \
-    && rm -f /tmp/kubectl.sha256 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/researchforge

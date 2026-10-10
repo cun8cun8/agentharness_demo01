@@ -95,3 +95,16 @@ def test_api_publish_checks_objects_before_creating_branch(tmp_path, monkeypatch
     else:
         assert git_workflow._push_via_github_api(repository, tmp_path, base, commit, "researchforge/repair") is False
         assert created == [{"ref": "refs/heads/researchforge/repair", "sha": commit}]
+
+
+def test_cached_api_baseline_requires_clean_matching_source(tmp_path, monkeypatch):
+    repository = SimpleNamespace(provider="github")
+    monkeypatch.setattr(git_workflow, "get_settings", lambda: SimpleNamespace(github_git_transport="api", network_enabled=True))
+    checked = []
+    monkeypatch.setattr(git_workflow, "_assert_remote_revision", lambda repo, source, revision: checked.append(revision))
+    monkeypatch.setattr(git_workflow, "git", lambda args, *unused: "base" if args[0] == "rev-parse" else "")
+    assert git_workflow.verify_cached_github_baseline(repository, tmp_path) == "base"
+    assert checked == ["base"]
+    monkeypatch.setattr(git_workflow, "git", lambda args, *unused: " M source.py" if args[0] == "status" else "base")
+    with pytest.raises(ValueError, match="CACHED_SOURCE_MUST_BE_CLEAN"):
+        git_workflow.verify_cached_github_baseline(repository, tmp_path)

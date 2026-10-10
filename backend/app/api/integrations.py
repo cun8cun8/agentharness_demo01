@@ -34,7 +34,7 @@ from app.infra.store import store
 from app.infra.store import github_repository_identity
 from app.services.job_queue import job_queue
 from app.tools.path_utils import resolve_repo_path
-from app.services.git_workflow import PublishPatchRequest, preview_patch, publish_patch
+from app.services.git_workflow import PublishPatchRequest, preview_patch, publish_patch, verify_cached_github_baseline
 from app.services.github_app import GitHubAppError, app_enabled, installation_permissions, repository_token
 from app.services.secrets import resolve_secret
 
@@ -834,7 +834,7 @@ async def repository_health(
     return _repository_health(repository, verify_access=verify_access)
 
 
-def _repository_health(repository, *, verify_access: bool = False) -> RepositoryHealthResponse:
+def _repository_health(repository, *, verify_access: bool = False, verify_remote: bool = True) -> RepositoryHealthResponse:
     if repository.provider != "local":
         cache_path = _repository_cache_path(repository.id)
         path = resolve_repo_path(repository.local_path) or cache_path
@@ -866,7 +866,7 @@ def _repository_health(repository, *, verify_access: bool = False) -> Repository
                 message = "仓库缓存存在，但不是 Git 仓库。"
         if source_path is not None and source_path.exists():
             remote_reachable = True
-        elif remote_url:
+        elif remote_url and verify_remote:
             remote_check = _git_output(
                 ["git", "ls-remote", "--symref", remote_url, "HEAD"],
                 env=auth_env,
@@ -1252,7 +1252,18 @@ async def _execute_repository_repair_job(
     output: dict[str, object] = {"repository_id": repository_id}
     try:
         sync_result: dict[str, object] | None = None
-        if repository.provider != "local":
+        verified_cache = (
+            repository.provider == "github" and get_settings().github_git_transport == "api"
+            and bool(request_data.get("allow_cached_on_sync_failure"))
+        )
+        if verified_cache:
+            source = resolve_repo_path(repository.local_path)
+            if source is None:
+                raise RuntimeError("REPOSITORY_PATH_UNAVAILABLE")
+            revision = await asyncio.to_thread(verify_cached_github_baseline, repository, source)
+            sync_result = {"status": "completed", "transport": "github_api_verified_cache", "source_revision": revision}
+            output["sync_fallback"] = {"status": "verified_cached", "reason": "GITHUB_API_VERIFIED_BASELINE", "source_revision": revision}
+        elif repository.provider != "local":
             sync_job = store.create_job(
                 kind="repository_sync",
                 resource_id=repository.id,
@@ -1272,7 +1283,7 @@ async def _execute_repository_repair_job(
                     "message": "远端同步失败，已按显式请求使用最近一次成功同步的本地缓存验收。",
                 }
             repository = store.get_repository_connection(repository_id) or repository
-        health = _repository_health(repository)
+        health = _repository_health(repository, verify_remote=not verified_cache)
         repo_path = health.cache_path or repository.local_path
         if not repo_path or not health.path_exists:
             raise RuntimeError(health.message or "REPOSITORY_PATH_UNAVAILABLE")

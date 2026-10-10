@@ -107,6 +107,27 @@ class Action(BaseModel):
     reason: str = Field(default="", max_length=1000)
 
 
+def parse_model_action(output: str) -> Action:
+    """Decode one action, allowing surrounding model prose or code fences."""
+    decoder = json.JSONDecoder()
+    actions = []
+    cursor = 0
+    while (start := output.find("{", cursor)) >= 0:
+        try:
+            value, length = decoder.raw_decode(output[start:])
+        except ValueError:
+            cursor = start + 1
+            continue
+        cursor = start + length
+        try:
+            actions.append(Action.model_validate(value))
+        except ValueError:
+            continue
+    if len(actions) != 1:
+        raise ValueError("MODEL_RESPONSE_REQUIRES_ONE_ACTION")
+    return actions[0]
+
+
 def action_fingerprint(action: Action) -> str:
     normalized = json.dumps(
         {"tool": action.tool, "input": action.input},
@@ -310,7 +331,7 @@ async def execute_autonomous(runtime, run, task):
             if response is None or response.fallback_used:
                 raise ValueError("AUTONOMOUS_RUNTIME_REQUIRES_REAL_MODEL")
             try:
-                action = Action.model_validate_json(response.output_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                action = parse_model_action(response.output_text)
             except ValueError:
                 action = Action(tool="file.read", input={"path": ".", "mode": "list"}, reason="模型动作格式无效，重新获取仓库信息。")
             return {"action": action.model_dump(), "turn": state.get("turn", 0) + 1}
