@@ -206,6 +206,7 @@ def main() -> int:
         if result.get("kind") != "coding_acceptance":
             raise RuntimeError(f"job {args.job_id} is not a coding acceptance job")
     else:
+        # Create new acceptance job
         try:
             result = request_json(
                 args.base_url,
@@ -217,6 +218,24 @@ def main() -> int:
         except RuntimeError as exc:
             write_failure_report(args.output, acceptance=acceptance_request, error=exc)
             raise
+    
+    # Poll the job if it's queued or running (either newly created or resumed)
+    status = str(result.get("status", "")).lower()
+    if status in {"queued", "running"}:
+        job_id = str(result.get("job_id") or result.get("id") or "")
+        if not job_id:
+            error = RuntimeError("job has no id")
+            write_failure_report(args.output, acceptance={**acceptance_request, "job_id": args.job_id}, error=error)
+            raise error
+        try:
+            result = poll_job(args.base_url, job_id, headers, args.job_timeout_seconds)
+        except RuntimeError as exc:
+            write_failure_report(args.output, acceptance={**acceptance_request, "job_id": job_id}, error=exc)
+            raise
+        if str(result.get("status", "")).lower() != "completed":
+            error = RuntimeError(f"acceptance job did not complete: {json.dumps(result, ensure_ascii=False)}")
+            write_failure_report(args.output, acceptance={**acceptance_request, "job_id": job_id}, error=error)
+            raise error
     if str(result.get("status", "")).lower() == "queued":
         job_id = str(result.get("job_id") or "")
         if not job_id:
@@ -236,7 +255,7 @@ def main() -> int:
         error = RuntimeError(f"acceptance job did not complete: {json.dumps(result, ensure_ascii=False)}")
         write_failure_report(
             args.output,
-            acceptance={**acceptance_request, "job_id": args.job_id or result.get("id")},
+            acceptance={**acceptance_request, "job_id": args.job_id or result.get("id") or result.get("job_id")},
             error=error,
         )
         raise error
