@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
@@ -6,7 +6,7 @@ COPY frontend ./
 ARG RESEARCHFORGE_BACKEND_URL=http://api:8001
 ENV RESEARCHFORGE_BACKEND_URL=$RESEARCHFORGE_BACKEND_URL
 RUN npm run build
-FROM node:22-alpine
+FROM node:25-alpine
 WORKDIR /app
 RUN rm -rf /usr/local/lib/node_modules/npm /opt/yarn-* \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
