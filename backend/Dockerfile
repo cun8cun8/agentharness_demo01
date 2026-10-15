@@ -10,7 +10,7 @@ RUN curl -fsSLo /tmp/kubernetes-src.tar.gz "https://dl.k8s.io/${KUBECTL_VERSION}
     && go mod edit -require=golang.org/x/net@v0.60.0 \
     && go build -mod=mod -trimpath -ldflags "-X k8s.io/component-base/version.gitVersion=${KUBECTL_VERSION}" -o /out/kubectl ./cmd/kubectl
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 COPY --from=docker:29.9.0-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=kubectl-build /out/kubectl /usr/local/bin/kubectl

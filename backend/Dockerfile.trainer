@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 RUN pip install --no-cache-dir 'torch>=2.6,<3' 'trl==1.14.0' 'transformers==5.19.0' 'datasets==5.1.0' 'accelerate>=1.4,<2' 'fsspec==2026.7.0' 'requests>=2.32.4,<3' \
     && pip check
 RUN python -c "from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer, GRPOConfig, GRPOTrainer; common=dict(output_dir='/tmp/config-check', use_cpu=True, bf16=False, report_to='none', per_device_train_batch_size=1); SFTConfig(**common, max_length=1024); DPOConfig(**common, max_length=1024); GRPOConfig(**common, max_completion_length=1024, num_generations=2, generation_batch_size=2)"
