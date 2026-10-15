@@ -1,7 +1,7 @@
 # Pinned, replaceable coding-agent runtime image.
 # ResearchForge supplies the workspace, model bridge, policy and validation;
 # this image supplies the open-source agent implementation.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ARG MINI_SWE_AGENT_VERSION=2.2.7
 
