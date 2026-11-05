@@ -1,5 +1,5 @@
 ARG KUBECTL_VERSION=v1.37.1
-FROM golang:1.27.2-bookworm AS kubectl-build
+FROM golang:1.27.3-bookworm AS kubectl-build
 ARG KUBECTL_VERSION
 ENV CGO_ENABLED=0 GOWORK=off
 WORKDIR /src/kubernetes
